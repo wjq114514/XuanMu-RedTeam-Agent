@@ -37,4 +37,97 @@
     width: min(420px, 92vw);
     z-index: 5;
   }
+
+  .subagent-side-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: block;
+    padding: 0;
+    background: rgba(3, 6, 12, 0.54);
+    border: 0;
+    backdrop-filter: blur(2px);
+  }
+
+  .sandbox-selector-topbar {
+    flex: 1 1 188px;
+    min-width: 160px;
+  }
+}
+
+@media (max-width: 600px) {
+  .sandbox-selector-topbar {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-topbar-playground .topbar-resource-actions > .semi-button {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    padding-inline: 10px;
+  }
+
+  .sandbox-container-actions {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .stream-status {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    padding: 7px 9px;
+  }
+
+  .stream-status span {
+    display: none;
+  }
+
+  .playground-canvas {
+    padding: 14px 12px 150px;
+  }
+
+  .playground-composer {
+    padding: 12px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+
+  .chat-scroll-tail-floating {
+    right: 24px;
+    bottom: 126px;
+  }
+
+  .subagent-side-panel {
+    width: 100%;
+  }
+
+  .subagent-side-header {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .subagent-side-heading {
+    max-width: 32%;
+  }
+
+  .subagent-side-body {
+    padding: 12px 12px 150px;
+  }
+
+  .subagent-side-body-shell .message-scroll-viewport,
+  .playground-canvas-shell .message-scroll-viewport {
+    scroll-padding-bottom: 150px;
+  }
+
+  .subagent-scroll-tail-floating {
+    right: 14px;
+    bottom: 126px;
+  }
+
+  .chat-message-user {
+    max-width: 92%;
+  }
 }

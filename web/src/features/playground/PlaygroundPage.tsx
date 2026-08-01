@@ -78,6 +78,15 @@ export function PlaygroundPage() {
     if (tab) setSelectedSubagent(tab.agentCode);
   }, [setSelectedSubagent, subagentTabs]);
 
+  useEffect(() => {
+    if (!selectedSubagent) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeSubagentPanel();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [closeSubagentPanel, selectedSubagent]);
+
   const openSelectedFileManager = useCallback(() => {
     if (selectedSandboxContainer) openFileManager(selectedSandboxContainer);
   }, [openFileManager, selectedSandboxContainer]);
@@ -306,6 +315,14 @@ export function PlaygroundPage() {
               />
             </div>
           </div>
+          {selectedSubagent ? (
+            <button
+              type="button"
+              className="subagent-side-backdrop"
+              aria-label="Close subagent panel"
+              onClick={closeSubagentPanel}
+            />
+          ) : null}
           <SubagentSidePanel
             nodes={chatState.nodes}
             tabs={subagentTabs}

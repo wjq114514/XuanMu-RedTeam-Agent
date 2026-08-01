@@ -4,17 +4,25 @@
   overflow: hidden;
   opacity: 0;
   transform: translateX(18px);
+  visibility: hidden;
   pointer-events: none;
   transition:
     opacity var(--motion-normal) var(--ease-standard),
-    transform var(--motion-slow) var(--ease-emphasized);
+    transform var(--motion-slow) var(--ease-emphasized),
+    visibility 0s linear var(--motion-slow);
   will-change: opacity, transform;
+}
+
+.subagent-side-backdrop {
+  display: none;
 }
 
 .subagent-side-panel-open {
   opacity: 1;
   transform: translateX(0);
+  visibility: visible;
   pointer-events: auto;
+  transition-delay: 0s;
 }
 
 .subagent-side-panel-inner {

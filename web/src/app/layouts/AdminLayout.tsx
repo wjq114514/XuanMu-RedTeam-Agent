@@ -1,5 +1,5 @@
 import { Avatar, Button } from "@douyinfe/semi-ui";
-import { FolderKanban, LogOut, MessageSquareCode, Settings, Users } from "lucide-react";
+import { FolderKanban, LogOut, MessageSquareCode, PanelLeftOpen, Settings, Users, X } from "lucide-react";
 import { ReactNode, Suspense, useCallback, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import { SessionList } from "../../features/playground/SessionList";
@@ -35,6 +35,7 @@ export function AdminLayout() {
   const location = useLocation();
   const [headerActions, setHeaderActionsState] = useState<ReactNode>(null);
   const [projectListVersion, setProjectListVersion] = useState(0);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const {
     sessions,
     sessionsLoading,
@@ -55,12 +56,26 @@ export function AdminLayout() {
     return () => window.clearTimeout(id);
   }, []);
 
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileSidebarOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileSidebarOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [mobileSidebarOpen]);
+
   const refreshWorkProjects = useCallback(() => {
     setProjectListVersion((version) => version + 1);
   }, []);
 
   const handleSelectAgentSession = useCallback((sessionId: string) => {
     selectSession(sessionId);
+    setMobileSidebarOpen(false);
     if (!location.pathname.startsWith("/playground")) {
       navigate("/playground");
     }
@@ -80,13 +95,21 @@ export function AdminLayout() {
 
   return (
     <div className="admin-shell">
-      <aside className="admin-sidebar">
+      <aside id="admin-sidebar" className={cx("admin-sidebar", mobileSidebarOpen && "admin-sidebar-open")}>
         <div className="brand-lockup">
           <img className="brand-logo" src={xuanmuLogo} alt="" />
-          <div>
+          <div className="brand-lockup-copy">
             <div className="brand-name">XuanMu</div>
             <div className="brand-kicker">红队智能体协作平台</div>
           </div>
+          <Button
+            aria-label="Close navigation"
+            className="mobile-sidebar-close"
+            icon={<X size={18} />}
+            theme="borderless"
+            type="tertiary"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
         </div>
 
         <div className="admin-sidebar-body">
@@ -97,6 +120,7 @@ export function AdminLayout() {
               onFocus={() => preloadAdminRoute("/playground")}
               onPointerDown={() => preloadAdminRoute("/playground")}
               onPointerEnter={() => preloadAdminRoute("/playground")}
+              onClick={() => setMobileSidebarOpen(false)}
             >
               <MessageSquareCode size={18} />
               <span>Playground</span>
@@ -127,6 +151,7 @@ export function AdminLayout() {
                   onFocus={() => preloadAdminRoute(item.path)}
                   onPointerDown={() => preloadAdminRoute(item.path)}
                   onPointerEnter={() => preloadAdminRoute(item.path)}
+                  onClick={() => setMobileSidebarOpen(false)}
                 >
                   <Icon size={18} />
                   <span>{item.label}</span>
@@ -141,11 +166,32 @@ export function AdminLayout() {
         </div>
       </aside>
 
+      {mobileSidebarOpen ? (
+        <button
+          type="button"
+          className="admin-sidebar-backdrop"
+          aria-label="Close navigation"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      ) : null}
+
       <div className="admin-main">
-        <header className="admin-topbar">
-          <div>
-            <div className="page-eyebrow">{activeItem?.eyebrow || "Operations"}</div>
-            <h1>{activeItem?.label || "Console"}</h1>
+        <header className={cx("admin-topbar", contentMode === "fixed" && "admin-topbar-playground")}>
+          <div className="admin-topbar-heading">
+            <Button
+              aria-controls="admin-sidebar"
+              aria-expanded={mobileSidebarOpen}
+              aria-label="Open navigation and conversations"
+              className="mobile-sidebar-toggle"
+              icon={<PanelLeftOpen size={18} />}
+              theme="borderless"
+              type="tertiary"
+              onClick={() => setMobileSidebarOpen(true)}
+            />
+            <div>
+              <div className="page-eyebrow">{activeItem?.eyebrow || "Operations"}</div>
+              <h1>{activeItem?.label || "Console"}</h1>
+            </div>
           </div>
           <div className="topbar-actions">
             {headerActions ? <div className="topbar-resource-actions">{headerActions}</div> : null}

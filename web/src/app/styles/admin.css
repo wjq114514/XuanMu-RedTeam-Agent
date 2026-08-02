@@ -272,7 +272,7 @@
   place-items: center;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
   .admin-shell {
     height: 100%;
     grid-template-columns: 1fr;

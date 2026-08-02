@@ -34,7 +34,7 @@ else
 fi
 
 # 2. 激活虚拟环境
-echo "[2/3] 加载 Python 虚拟环境..."
+echo "[2/4] 加载 Python 虚拟环境..."
 if [ ! -d "$VENV_DIR" ]; then
     echo "  ⏳ 创建虚拟环境..."
     python3 -m venv "$VENV_DIR"
@@ -43,8 +43,46 @@ fi
 source "$VENV_DIR/bin/activate"
 echo "  ✅ 虚拟就绪: $(python3 --version)"
 
-# 3. 启动后端
-echo "[3/3] 启动 XuanMu 后端服务..."
+# 3. 构建前端（仅当源码有变动时）
+echo "[3/4] 检查前端是否需要构建..."
+if [ ! -d "$PROJECT_DIR/web/node_modules" ]; then
+    echo "  ⏳ 安装前端依赖 (npm install)..."
+    (cd "$PROJECT_DIR/web" && npm install)
+fi
+
+# 判断是否需要重新构建：dist-app 不存在，或源码比 dist-app 新
+NEED_BUILD=0
+DIST="$PROJECT_DIR/web/dist-app"
+if [ ! -d "$DIST" ]; then
+    NEED_BUILD=1
+    echo "  ⏳ 未检测到 dist-app，需要首次构建"
+else
+    # 比较源码目录与 dist-app 的最近修改时间
+    LATEST_SRC=$(find "$PROJECT_DIR/web/src" "$PROJECT_DIR/web" -maxdepth 1 \
+        \( -name '*.ts' -o -name '*.tsx' -o -name '*.vue' -o -name '*.html' \
+           -o -name '*.css' -o -name 'package.json' -o -name 'vite.config.*' \) \
+        -newer "$DIST" -print 2>/dev/null | head -n 1)
+    if [ -n "$LATEST_SRC" ]; then
+        NEED_BUILD=1
+        echo "  ⏳ 检测到源码变动: $(basename "$LATEST_SRC")"
+    fi
+fi
+
+if [ "$NEED_BUILD" -eq 1 ]; then
+    echo "  ⏳ 运行 npm run build..."
+    (cd "$PROJECT_DIR/web" && npm run build)
+    if [ -d "$PROJECT_DIR/web/dist-app" ]; then
+        echo "  ✅ 前端构建完成: web/dist-app"
+    else
+        echo "  ❌ 前端构建失败，未生成 dist-app"
+        exit 1
+    fi
+else
+    echo "  ✅ 前端无变动，跳过构建（使用现有 dist-app）"
+fi
+
+# 4. 启动后端
+echo "[4/4] 启动 XuanMu 后端服务..."
 echo ""
 echo "  🌐 API 地址:     http://127.0.0.1:8000"
 echo "  📖 API 文档:     http://127.0.0.1:8000/docs"

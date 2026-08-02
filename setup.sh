@@ -10,11 +10,11 @@ cd "$(dirname "$0")"
 PROJECT_DIR="$(pwd)"
 
 # ---------- 颜色 ----------
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+BLUE=$'\033[0;34m'
+NC=$'\033[0m'
 
 log()  { echo -e "${GREEN}[✓]${NC} $1"; }
 warn() { echo -e "${YELLOW}[!]${NC} $1"; }
@@ -63,9 +63,18 @@ if pg_isready -q 2>/dev/null; then
     log "PostgreSQL 已在运行"
 else
     if command -v pg_ctlcluster >/dev/null 2>&1; then
-        sudo pg_ctlcluster 18 main start 2>/dev/null || sudo pg_ctlcluster 16 main start 2>/dev/null || {
+        # 自动探测已安装的 PG 集群版本并启动
+        STARTED=0
+        for ver in $(ls /etc/postgresql/ 2>/dev/null | sort -Vr); do
+            if sudo pg_ctlcluster "$ver" main start 2>/dev/null; then
+                STARTED=1
+                log "PostgreSQL $ver 已启动"
+                break
+            fi
+        done
+        if [ "$STARTED" -eq 0 ]; then
             warn "启动 PostgreSQL 失败，请手动启动"
-        }
+        fi
     else
         sudo service postgresql start 2>/dev/null || {
             warn "启动 PostgreSQL 失败，请手动启动"
@@ -129,23 +138,61 @@ fi
 # ---------- 5. 创建 Python 虚拟环境 ----------
 info "配置 Python 虚拟环境..."
 VENV_DIR="$PROJECT_DIR/.venv"
-if [ ! -d "$VENV_DIR" ]; then
-    python3 -m venv "$VENV_DIR"
+
+# 5.1 确保 python3-venv 可用（Kali/Debian 常见缺失，导致 ensurepip 报错）
+if ! python3 -c "import venv, ensurepip" >/dev/null 2>&1; then
+    warn "缺少 python3-venv，尝试安装..."
+    if [ "$(id -u)" -eq 0 ]; then
+        apt update -qq && apt install -y -qq python3-venv python3-pip 2>&1 | tail -2
+    else
+        warn "需要 root 权限安装 python3-venv，请手动执行:"
+        warn "  sudo apt update && sudo apt install -y python3-venv python3-pip"
+        warn "然后重新运行本脚本"
+        exit 1
+    fi
+    if ! python3 -c "import ensurepip" >/dev/null 2>&1; then
+        err "python3-venv 安装后仍不可用，请手动检查"
+    fi
+fi
+
+# 5.2 创建虚拟环境（带失败检测）
+if [ ! -d "$VENV_DIR/bin/python" ]; then
+    info "创建虚拟环境..."
+    if ! python3 -m venv "$VENV_DIR"; then
+        err "虚拟环境创建失败。请确认 python3-venv 已安装，或尝试: python3 -m venv --without-pip $VENV_DIR"
+    fi
     log "虚拟环境已创建"
+fi
+
+# 5.3 校验并激活
+if [ ! -x "$VENV_DIR/bin/python" ]; then
+    err "虚拟环境不完整，缺少 python 解释器"
 fi
 source "$VENV_DIR/bin/activate"
 
-# 安装依赖
+# 5.4 确保 pip 存在（venv 有时不带 pip）
+if ! command -v pip >/dev/null 2>&1; then
+    warn "venv 中缺少 pip，尝试安装..."
+    python -m ensurepip --upgrade 2>/dev/null || {
+        curl -sS https://bootstrap.pypa.io/get-pip.py | python - 2>/dev/null || err "pip 安装失败，请手动处理"
+    }
+fi
+
+# 5.5 安装依赖（优先使用 requirements.txt，保证完整且与 start.sh 一致）
 info "安装 Python 依赖（阿里云镜像）..."
-pip install -i https://mirrors.aliyun.com/pypi/simple/ --upgrade pip -q 2>&1 | tail -1
-pip install -i https://mirrors.aliyun.com/pypi/simple/ \
-    asyncpg sqlmodel openai mcp tiktoken sse-starlette python-multipart \
-    pyjwt pyyaml httpx httpx-sse docker fastapi uvicorn websockets \
-    pydantic-settings pydantic annotated-types anyio certifi charset-normalizer \
-    click cryptography distro greenlet h11 httpcore idna jiter jsonschema \
-    jsonschema-specifications openai-agents pycparser referencing regex \
-    rpds-py sniffio starlette tqdm typing-inspection typing_extensions urllib3 \
-    2>&1 | tail -3
+python -m pip install -i https://mirrors.aliyun.com/pypi/simple/ --upgrade pip -q 2>&1 | tail -1
+if [ -f "$PROJECT_DIR/requirements.txt" ]; then
+    python -m pip install -i https://mirrors.aliyun.com/pypi/simple/ -r "$PROJECT_DIR/requirements.txt" 2>&1 | tail -3
+else
+    python -m pip install -i https://mirrors.aliyun.com/pypi/simple/ \
+        asyncpg sqlmodel openai mcp tiktoken sse-starlette python-multipart \
+        pyjwt pyyaml httpx httpx-sse docker fastapi uvicorn websockets \
+        pydantic-settings pydantic annotated-types anyio certifi charset-normalizer \
+        click cryptography distro greenlet h11 httpcore idna jiter jsonschema \
+        jsonschema-specifications openai-agents pycparser referencing regex \
+        rpds-py sniffio starlette tqdm typing-inspection typing_extensions urllib3 \
+        2>&1 | tail -3
+fi
 log "Python 依赖已安装"
 
 # ---------- 6. 构建前端 ----------

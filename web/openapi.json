@@ -677,6 +677,249 @@
         "title": "AgentTurnResponse",
         "type": "object"
       },
+      "BlackboardCreateNodeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "default": 1.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "creator_agent_code": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Creator Agent Code",
+            "type": "string"
+          },
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "extra": {
+            "default": "{}",
+            "title": "Extra",
+            "type": "string"
+          },
+          "node_type": {
+            "$ref": "#/components/schemas/BlackboardNodeType"
+          },
+          "parent_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Parent Ids",
+            "type": "array"
+          },
+          "session_id": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_type",
+          "description"
+        ],
+        "title": "BlackboardCreateNodeRequest",
+        "type": "object"
+      },
+      "BlackboardNodeSchema": {
+        "properties": {
+          "confidence": {
+            "default": 1.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "creator_agent_code": {
+            "default": "",
+            "title": "Creator Agent Code",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "extra": {
+            "default": "{}",
+            "title": "Extra",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "node_type": {
+            "$ref": "#/components/schemas/BlackboardNodeType"
+          },
+          "parent_ids": {
+            "default": "[]",
+            "title": "Parent Ids",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "session_id": {
+            "default": "",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BlackboardNodeStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "node_type",
+          "status",
+          "description",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "BlackboardNodeSchema",
+        "type": "object"
+      },
+      "BlackboardNodeStatus": {
+        "enum": [
+          "proposed",
+          "in_progress",
+          "confirmed",
+          "rejected",
+          "superseded"
+        ],
+        "title": "BlackboardNodeStatus",
+        "type": "string"
+      },
+      "BlackboardNodeType": {
+        "enum": [
+          "fact",
+          "intent",
+          "hint"
+        ],
+        "title": "BlackboardNodeType",
+        "type": "string"
+      },
+      "BlackboardSnapshotSchema": {
+        "description": "Full blackboard graph for a project — all nodes + metadata.",
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/BlackboardNodeSchema"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "total_count": {
+            "title": "Total Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id",
+          "nodes",
+          "total_count"
+        ],
+        "title": "BlackboardSnapshotSchema",
+        "type": "object"
+      },
+      "BlackboardUpdateNodeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "extra": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra"
+          },
+          "parent_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Ids"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlackboardNodeStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "BlackboardUpdateNodeRequest",
+        "type": "object"
+      },
+      "Body_preview_scan_report_import_route_api_work_projects__project_id__scan_report_imports_preview_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_preview_scan_report_import_route_api_work_projects__project_id__scan_report_imports_preview_post",
+        "type": "object"
+      },
       "Body_upload_container_files_route_api_sandbox_containers__id__files_upload_post": {
         "properties": {
           "files": {
@@ -702,6 +945,102 @@
           "files"
         ],
         "title": "Body_upload_container_files_route_api_sandbox_containers__id__files_upload_post",
+        "type": "object"
+      },
+      "CommitScanReportImportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "create_blackboard_fact": {
+            "default": true,
+            "title": "Create Blackboard Fact",
+            "type": "boolean"
+          },
+          "create_relationships": {
+            "default": true,
+            "title": "Create Relationships",
+            "type": "boolean"
+          },
+          "selected_asset_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 110000,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Asset Keys"
+          }
+        },
+        "title": "CommitScanReportImportRequest",
+        "type": "object"
+      },
+      "CommitScanReportImportResponse": {
+        "properties": {
+          "blackboard_node_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blackboard Node Id"
+          },
+          "created_assets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Created Assets",
+            "type": "array"
+          },
+          "created_relationships": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Created Relationships",
+            "type": "array"
+          },
+          "import_id": {
+            "title": "Import Id",
+            "type": "string"
+          },
+          "skipped_assets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skipped Assets",
+            "type": "array"
+          },
+          "skipped_relationships": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skipped Relationships",
+            "type": "array"
+          },
+          "updated_assets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Updated Assets",
+            "type": "array"
+          }
+        },
+        "required": [
+          "import_id",
+          "created_assets",
+          "updated_assets",
+          "skipped_assets",
+          "created_relationships",
+          "skipped_relationships"
+        ],
+        "title": "CommitScanReportImportResponse",
         "type": "object"
       },
       "CommonResponse": {
@@ -798,6 +1137,58 @@
           }
         },
         "title": "CommonResponse[Any]",
+        "type": "object"
+      },
+      "CommonResponse_BlackboardSnapshotSchema_": {
+        "properties": {
+          "code": {
+            "default": 200,
+            "title": "Code",
+            "type": "integer"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlackboardSnapshotSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "success",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "CommonResponse[BlackboardSnapshotSchema]",
+        "type": "object"
+      },
+      "CommonResponse_CommitScanReportImportResponse_": {
+        "properties": {
+          "code": {
+            "default": 200,
+            "title": "Code",
+            "type": "integer"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommitScanReportImportResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "success",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "CommonResponse[CommitScanReportImportResponse]",
         "type": "object"
       },
       "CommonResponse_ContainerFileReadResponse_": {
@@ -1500,6 +1891,32 @@
           }
         },
         "title": "CommonResponse[SandboxImageSchema]",
+        "type": "object"
+      },
+      "CommonResponse_ScanReportImportPreviewResponse_": {
+        "properties": {
+          "code": {
+            "default": 200,
+            "title": "Code",
+            "type": "integer"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScanReportImportPreviewResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "success",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "CommonResponse[ScanReportImportPreviewResponse]",
         "type": "object"
       },
       "CommonResponse_SystemUserLoginResponse_": {
@@ -2412,6 +2829,19 @@
         "title": "ErrorEvent",
         "type": "object"
       },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "InstanceConfigSchema": {
         "additionalProperties": false,
         "properties": {
@@ -3302,6 +3732,270 @@
           "updated_at"
         ],
         "title": "SandboxImageSchema",
+        "type": "object"
+      },
+      "ScanReportAssetCandidate": {
+        "additionalProperties": false,
+        "properties": {
+          "extra": {
+            "$ref": "#/components/schemas/WorkProjectAssetExtraSchema"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "identifier": {
+            "title": "Identifier",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/WorkProjectAssetOrigin",
+            "default": "discovered"
+          },
+          "path": {
+            "default": "",
+            "title": "Path",
+            "type": "string"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port"
+          },
+          "type": {
+            "$ref": "#/components/schemas/WorkProjectAssetType"
+          }
+        },
+        "required": [
+          "key",
+          "type",
+          "identifier",
+          "host"
+        ],
+        "title": "ScanReportAssetCandidate",
+        "type": "object"
+      },
+      "ScanReportImportCounts": {
+        "properties": {
+          "assets": {
+            "default": 0,
+            "title": "Assets",
+            "type": "integer"
+          },
+          "domains": {
+            "default": 0,
+            "title": "Domains",
+            "type": "integer"
+          },
+          "hosts": {
+            "default": 0,
+            "title": "Hosts",
+            "type": "integer"
+          },
+          "networks": {
+            "default": 0,
+            "title": "Networks",
+            "type": "integer"
+          },
+          "relationships": {
+            "default": 0,
+            "title": "Relationships",
+            "type": "integer"
+          },
+          "services": {
+            "default": 0,
+            "title": "Services",
+            "type": "integer"
+          }
+        },
+        "title": "ScanReportImportCounts",
+        "type": "object"
+      },
+      "ScanReportImportFormat": {
+        "enum": [
+          "nmap_xml"
+        ],
+        "title": "ScanReportImportFormat",
+        "type": "string"
+      },
+      "ScanReportImportInfo": {
+        "properties": {
+          "committed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Committed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "default": "",
+            "title": "Error",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ScanReportImportFormat"
+          },
+          "import_id": {
+            "title": "Import Id",
+            "type": "string"
+          },
+          "media_type": {
+            "title": "Media Type",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScanReportImportStatus"
+          },
+          "summary": {
+            "additionalProperties": true,
+            "title": "Summary",
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "uploader_user_id": {
+            "title": "Uploader User Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "import_id",
+          "project_id",
+          "uploader_user_id",
+          "filename",
+          "media_type",
+          "sha256",
+          "format",
+          "status",
+          "size_bytes",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ScanReportImportInfo",
+        "type": "object"
+      },
+      "ScanReportImportPreviewResponse": {
+        "properties": {
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/ScanReportAssetCandidate"
+            },
+            "title": "Assets",
+            "type": "array"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ScanReportImportCounts"
+          },
+          "duplicate_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Duplicate Keys",
+            "type": "array"
+          },
+          "import_info": {
+            "$ref": "#/components/schemas/ScanReportImportInfo"
+          },
+          "relationships": {
+            "items": {
+              "$ref": "#/components/schemas/ScanReportRelationshipCandidate"
+            },
+            "title": "Relationships",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "import_info",
+          "assets",
+          "relationships",
+          "warnings",
+          "duplicate_keys",
+          "counts"
+        ],
+        "title": "ScanReportImportPreviewResponse",
+        "type": "object"
+      },
+      "ScanReportImportStatus": {
+        "enum": [
+          "previewed",
+          "committed",
+          "failed"
+        ],
+        "title": "ScanReportImportStatus",
+        "type": "string"
+      },
+      "ScanReportRelationshipCandidate": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "source_asset_key": {
+            "title": "Source Asset Key",
+            "type": "string"
+          },
+          "target_asset_key": {
+            "title": "Target Asset Key",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/WorkProjectGraphEdgeType"
+          }
+        },
+        "required": [
+          "key",
+          "source_asset_key",
+          "target_asset_key",
+          "type"
+        ],
+        "title": "ScanReportRelationshipCandidate",
         "type": "object"
       },
       "SessionType": {
@@ -4416,6 +5110,46 @@
         "title": "UserMessageEvent",
         "type": "object"
       },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
       "WorkProjectAgentSummaryContentSchema": {
         "properties": {
           "blockers": {
@@ -4532,6 +5266,19 @@
             "default": "",
             "maxLength": 512,
             "title": "Banner",
+            "type": "string"
+          },
+          "protocol": {
+            "default": "tcp",
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Protocol",
+            "type": "string"
+          },
+          "service_name": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Service Name",
             "type": "string"
           }
         },
@@ -5287,13 +6034,13 @@
     "securitySchemes": {
       "AccessTokenAuth": {
         "in": "header",
-        "name": "X-Z3r0-Access-Token",
+        "name": "X-XM-Access-Token",
         "type": "apiKey"
       }
     }
   },
   "info": {
-    "title": "Z3r0 - A controlled multi-agent workbench for authorized security assessment, code auditing, internal review, and controlled research.",
+    "title": "XuanMu RedTeam Agent - 开源红队多智能体协作平台，用于授权安全评估、代码审计、渗透测试与安全研究。",
     "version": "0.2.1"
   },
   "openapi": "3.1.0",
@@ -5975,6 +6722,270 @@
         "summary": "List Agents Handler",
         "tags": [
           "agents"
+        ]
+      }
+    },
+    "/api/blackboard/{project_id}": {
+      "get": {
+        "operationId": "get_blackboard_route_api_blackboard__project_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_BlackboardSnapshotSchema_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "AccessTokenAuth": []
+          }
+        ],
+        "summary": "Read full blackboard graph for a project",
+        "tags": [
+          "blackboard"
+        ]
+      }
+    },
+    "/api/blackboard/{project_id}/nodes": {
+      "post": {
+        "operationId": "create_blackboard_node_route_api_blackboard__project_id__nodes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlackboardCreateNodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "AccessTokenAuth": []
+          }
+        ],
+        "summary": "Create a new blackboard node (fact / intent / hint)",
+        "tags": [
+          "blackboard"
+        ]
+      }
+    },
+    "/api/blackboard/{project_id}/nodes/{node_id}": {
+      "delete": {
+        "operationId": "delete_blackboard_node_route_api_blackboard__project_id__nodes__node_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "title": "Node Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "AccessTokenAuth": []
+          }
+        ],
+        "summary": "Delete a blackboard node",
+        "tags": [
+          "blackboard"
+        ]
+      },
+      "put": {
+        "operationId": "update_blackboard_node_route_api_blackboard__project_id__nodes__node_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "title": "Node Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlackboardUpdateNodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "AccessTokenAuth": []
+          }
+        ],
+        "summary": "Update a blackboard node (status / description / etc)",
+        "tags": [
+          "blackboard"
         ]
       }
     },
@@ -10032,6 +11043,209 @@
         "summary": "Delete Work Project Session Route",
         "tags": [
           "work-projects"
+        ]
+      }
+    },
+    "/api/work-projects/{project_id}/scan-report-imports/preview": {
+      "post": {
+        "operationId": "preview_scan_report_import_route_api_work_projects__project_id__scan_report_imports_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_preview_scan_report_import_route_api_work_projects__project_id__scan_report_imports_preview_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_ScanReportImportPreviewResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Work project not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "AccessTokenAuth": []
+          }
+        ],
+        "summary": "Preview Scan Report Import Route",
+        "tags": [
+          "work-project-scan-report-imports"
+        ]
+      }
+    },
+    "/api/work-projects/{project_id}/scan-report-imports/{import_id}/commit": {
+      "post": {
+        "operationId": "commit_scan_report_import_route_api_work_projects__project_id__scan_report_imports__import_id__commit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitScanReportImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_CommitScanReportImportResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Work project or scan report import not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_Any_"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "AccessTokenAuth": []
+          }
+        ],
+        "summary": "Commit Scan Report Import Route",
+        "tags": [
+          "work-project-scan-report-imports"
         ]
       }
     }

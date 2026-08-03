@@ -1,5 +1,5 @@
 import { Empty, TabPane, Tabs, Tag } from "@douyinfe/semi-ui";
-import { Boxes, Bug, FileText, GitBranch, List, Network, Route } from "lucide-react";
+import { Boxes, Bug, FileText, GitBranch, List, Network, Route, Upload } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { showApiError } from "../../shared/api/feedback";
 import { WORK_PROJECT_ASSET_TYPE } from "../../shared/api/contract";
@@ -34,6 +34,7 @@ import {
 } from "../../shared/lib/labels";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { BlackboardGraphCanvas } from "./BlackboardGraphCanvas";
+import { ScanReportImportModal } from "./ScanReportImportModal";
 import { filledDetailItems, type DetailItem } from "./workProjectDetails";
 import { formatWorkProjectAsset } from "./workProjectView";
 
@@ -44,6 +45,7 @@ type WorkProjectRecordTabsProps = {
   initialTab?: ProjectRecordTab;
   className?: string;
   projectId?: number;
+  onRecordsChanged?: () => void;
 };
 
 export function WorkProjectRecordTabs({
@@ -51,7 +53,14 @@ export function WorkProjectRecordTabs({
   initialTab = "assets",
   className,
   projectId,
+  onRecordsChanged,
 }: WorkProjectRecordTabsProps) {
+  const [importOpen, setImportOpen] = useState(false);
+  const [recordsRevision, setRecordsRevision] = useState(0);
+  const handleImported = () => {
+    setRecordsRevision((value) => value + 1);
+    onRecordsChanged?.();
+  };
   return (
     <Tabs
       type="line"
@@ -59,7 +68,25 @@ export function WorkProjectRecordTabs({
       defaultActiveKey={initialTab}
     >
       <TabPane tab={<TabLabel icon={<Boxes size={14} />} text="Assets" />} itemKey="assets">
-        <AssetList assets={records.assets} />
+        <div className="project-asset-pane">
+          {projectId ? (
+            <div className="project-record-toolbar">
+              <span>{records.assets.length} assets</span>
+              <button type="button" onClick={() => setImportOpen(true)}>
+                <Upload size={14} /> Import report
+              </button>
+            </div>
+          ) : null}
+          <AssetList assets={records.assets} />
+          {projectId ? (
+            <ScanReportImportModal
+              visible={importOpen}
+              projectId={projectId}
+              onClose={() => setImportOpen(false)}
+              onImported={handleImported}
+            />
+          ) : null}
+        </div>
       </TabPane>
       <TabPane tab={<TabLabel icon={<Bug size={14} />} text="Findings" />} itemKey="findings">
         <FindingList findings={records.findings} assets={records.assets} />
@@ -71,7 +98,7 @@ export function WorkProjectRecordTabs({
         <GraphView assets={records.assets} graph={records.graph} />
       </TabPane>
       <TabPane tab={<TabLabel icon={<GitBranch size={14} />} text="Blackboard" />} itemKey="blackboard">
-        <BlackboardList projectId={projectId} />
+        <BlackboardList projectId={projectId} refreshKey={recordsRevision} />
       </TabPane>
     </Tabs>
   );
@@ -164,7 +191,7 @@ export function GraphView({ assets, graph }: { assets: WorkProjectAsset[]; graph
 
 // ── BlackboardList ──
 
-function BlackboardList({ projectId }: { projectId?: number }) {
+function BlackboardList({ projectId, refreshKey = 0 }: { projectId?: number; refreshKey?: number }) {
   const [nodes, setNodes] = useState<BlackboardNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "graph">("graph");
@@ -190,7 +217,7 @@ function BlackboardList({ projectId }: { projectId?: number }) {
         }
       });
     return () => { canceled = true; };
-  }, [projectId]);
+  }, [projectId, refreshKey]);
 
   if (!projectId) return <RecordEmpty title="No project selected." />;
   if (loading) return <div className="project-record-list"><div className="loading-hint">Loading blackboard…</div></div>;

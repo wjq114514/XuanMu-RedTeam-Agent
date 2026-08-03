@@ -174,6 +174,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/blackboard/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read full blackboard graph for a project */
+        get: operations["get_blackboard_route_api_blackboard__project_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blackboard/{project_id}/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a new blackboard node (fact / intent / hint) */
+        post: operations["create_blackboard_node_route_api_blackboard__project_id__nodes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blackboard/{project_id}/nodes/{node_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update a blackboard node (status / description / etc) */
+        put: operations["update_blackboard_node_route_api_blackboard__project_id__nodes__node_id__put"];
+        post?: never;
+        /** Delete a blackboard node */
+        delete: operations["delete_blackboard_node_route_api_blackboard__project_id__nodes__node_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/egress-proxies": {
         parameters: {
             query?: never;
@@ -814,6 +866,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/work-projects/{project_id}/scan-report-imports/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Scan Report Import Route */
+        post: operations["preview_scan_report_import_route_api_work_projects__project_id__scan_report_imports_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/work-projects/{project_id}/scan-report-imports/{import_id}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commit Scan Report Import Route */
+        post: operations["commit_scan_report_import_route_api_work_projects__project_id__scan_report_imports__import_id__commit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1137,6 +1223,119 @@ export interface components {
             /** Session Id */
             session_id: string;
         };
+        /** BlackboardCreateNodeRequest */
+        BlackboardCreateNodeRequest: {
+            /**
+             * Confidence
+             * @default 1
+             */
+            confidence: number;
+            /**
+             * Creator Agent Code
+             * @default
+             */
+            creator_agent_code: string;
+            /** Description */
+            description: string;
+            /**
+             * Extra
+             * @default {}
+             */
+            extra: string;
+            node_type: components["schemas"]["BlackboardNodeType"];
+            /** Parent Ids */
+            parent_ids?: number[];
+            /**
+             * Session Id
+             * @default
+             */
+            session_id: string;
+        };
+        /** BlackboardNodeSchema */
+        BlackboardNodeSchema: {
+            /**
+             * Confidence
+             * @default 1
+             */
+            confidence: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Creator Agent Code
+             * @default
+             */
+            creator_agent_code: string;
+            /** Description */
+            description: string;
+            /**
+             * Extra
+             * @default {}
+             */
+            extra: string;
+            /** Id */
+            id: number;
+            node_type: components["schemas"]["BlackboardNodeType"];
+            /**
+             * Parent Ids
+             * @default []
+             */
+            parent_ids: string;
+            /** Project Id */
+            project_id: number;
+            /**
+             * Session Id
+             * @default
+             */
+            session_id: string;
+            status: components["schemas"]["BlackboardNodeStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * BlackboardNodeStatus
+         * @enum {string}
+         */
+        BlackboardNodeStatus: "proposed" | "in_progress" | "confirmed" | "rejected" | "superseded";
+        /**
+         * BlackboardNodeType
+         * @enum {string}
+         */
+        BlackboardNodeType: "fact" | "intent" | "hint";
+        /**
+         * BlackboardSnapshotSchema
+         * @description Full blackboard graph for a project — all nodes + metadata.
+         */
+        BlackboardSnapshotSchema: {
+            /** Nodes */
+            nodes: components["schemas"]["BlackboardNodeSchema"][];
+            /** Project Id */
+            project_id: number;
+            /** Total Count */
+            total_count: number;
+        };
+        /** BlackboardUpdateNodeRequest */
+        BlackboardUpdateNodeRequest: {
+            /** Confidence */
+            confidence?: number | null;
+            /** Description */
+            description?: string | null;
+            /** Extra */
+            extra?: string | null;
+            /** Parent Ids */
+            parent_ids?: number[] | null;
+            status?: components["schemas"]["BlackboardNodeStatus"] | null;
+        };
+        /** Body_preview_scan_report_import_route_api_work_projects__project_id__scan_report_imports_preview_post */
+        Body_preview_scan_report_import_route_api_work_projects__project_id__scan_report_imports_preview_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_container_files_route_api_sandbox_containers__id__files_upload_post */
         Body_upload_container_files_route_api_sandbox_containers__id__files_upload_post: {
             /** Files */
@@ -1151,6 +1350,38 @@ export interface components {
              * @default /
              */
             path: string;
+        };
+        /** CommitScanReportImportRequest */
+        CommitScanReportImportRequest: {
+            /**
+             * Create Blackboard Fact
+             * @default true
+             */
+            create_blackboard_fact: boolean;
+            /**
+             * Create Relationships
+             * @default true
+             */
+            create_relationships: boolean;
+            /** Selected Asset Keys */
+            selected_asset_keys?: string[] | null;
+        };
+        /** CommitScanReportImportResponse */
+        CommitScanReportImportResponse: {
+            /** Blackboard Node Id */
+            blackboard_node_id?: number | null;
+            /** Created Assets */
+            created_assets: string[];
+            /** Created Relationships */
+            created_relationships: string[];
+            /** Import Id */
+            import_id: string;
+            /** Skipped Assets */
+            skipped_assets: string[];
+            /** Skipped Relationships */
+            skipped_relationships: string[];
+            /** Updated Assets */
+            updated_assets: string[];
         };
         /** CommonResponse */
         CommonResponse: {
@@ -1204,6 +1435,34 @@ export interface components {
             code: number;
             /** Data */
             data?: unknown;
+            /**
+             * Message
+             * @default success
+             */
+            message: string;
+        };
+        /** CommonResponse[BlackboardSnapshotSchema] */
+        CommonResponse_BlackboardSnapshotSchema_: {
+            /**
+             * Code
+             * @default 200
+             */
+            code: number;
+            data?: components["schemas"]["BlackboardSnapshotSchema"] | null;
+            /**
+             * Message
+             * @default success
+             */
+            message: string;
+        };
+        /** CommonResponse[CommitScanReportImportResponse] */
+        CommonResponse_CommitScanReportImportResponse_: {
+            /**
+             * Code
+             * @default 200
+             */
+            code: number;
+            data?: components["schemas"]["CommitScanReportImportResponse"] | null;
             /**
              * Message
              * @default success
@@ -1582,6 +1841,20 @@ export interface components {
              */
             code: number;
             data?: components["schemas"]["SandboxImageSchema"] | null;
+            /**
+             * Message
+             * @default success
+             */
+            message: string;
+        };
+        /** CommonResponse[ScanReportImportPreviewResponse] */
+        CommonResponse_ScanReportImportPreviewResponse_: {
+            /**
+             * Code
+             * @default 200
+             */
+            code: number;
+            data?: components["schemas"]["ScanReportImportPreviewResponse"] | null;
             /**
              * Message
              * @default success
@@ -2021,6 +2294,11 @@ export interface components {
              */
             type: "error";
         };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /** InstanceConfigSchema */
         InstanceConfigSchema: {
             agent_pool?: components["schemas"]["AgentPoolConfig"];
@@ -2378,6 +2656,132 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** ScanReportAssetCandidate */
+        ScanReportAssetCandidate: {
+            extra?: components["schemas"]["WorkProjectAssetExtraSchema"];
+            /** Host */
+            host: string;
+            /** Identifier */
+            identifier: string;
+            /** Key */
+            key: string;
+            /** @default discovered */
+            origin: components["schemas"]["WorkProjectAssetOrigin"];
+            /**
+             * Path
+             * @default
+             */
+            path: string;
+            /** Port */
+            port?: number | null;
+            type: components["schemas"]["WorkProjectAssetType"];
+        };
+        /** ScanReportImportCounts */
+        ScanReportImportCounts: {
+            /**
+             * Assets
+             * @default 0
+             */
+            assets: number;
+            /**
+             * Domains
+             * @default 0
+             */
+            domains: number;
+            /**
+             * Hosts
+             * @default 0
+             */
+            hosts: number;
+            /**
+             * Networks
+             * @default 0
+             */
+            networks: number;
+            /**
+             * Relationships
+             * @default 0
+             */
+            relationships: number;
+            /**
+             * Services
+             * @default 0
+             */
+            services: number;
+        };
+        /**
+         * ScanReportImportFormat
+         * @enum {string}
+         */
+        ScanReportImportFormat: "nmap_xml";
+        /** ScanReportImportInfo */
+        ScanReportImportInfo: {
+            /** Committed At */
+            committed_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Error
+             * @default
+             */
+            error: string;
+            /** Filename */
+            filename: string;
+            format: components["schemas"]["ScanReportImportFormat"];
+            /** Import Id */
+            import_id: string;
+            /** Media Type */
+            media_type: string;
+            /** Project Id */
+            project_id: number;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+            status: components["schemas"]["ScanReportImportStatus"];
+            /** Summary */
+            summary?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Uploader User Id */
+            uploader_user_id: number;
+        };
+        /** ScanReportImportPreviewResponse */
+        ScanReportImportPreviewResponse: {
+            /** Assets */
+            assets: components["schemas"]["ScanReportAssetCandidate"][];
+            counts: components["schemas"]["ScanReportImportCounts"];
+            /** Duplicate Keys */
+            duplicate_keys: string[];
+            import_info: components["schemas"]["ScanReportImportInfo"];
+            /** Relationships */
+            relationships: components["schemas"]["ScanReportRelationshipCandidate"][];
+            /** Warnings */
+            warnings: string[];
+        };
+        /**
+         * ScanReportImportStatus
+         * @enum {string}
+         */
+        ScanReportImportStatus: "previewed" | "committed" | "failed";
+        /** ScanReportRelationshipCandidate */
+        ScanReportRelationshipCandidate: {
+            /** Key */
+            key: string;
+            /** Source Asset Key */
+            source_asset_key: string;
+            /** Target Asset Key */
+            target_asset_key: string;
+            type: components["schemas"]["WorkProjectGraphEdgeType"];
         };
         /**
          * SessionType
@@ -2943,6 +3347,19 @@ export interface components {
              */
             type: "user_message";
         };
+        /** ValidationError */
+        ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+        };
         /** WorkProjectAgentSummaryContentSchema */
         WorkProjectAgentSummaryContentSchema: {
             /**
@@ -3014,6 +3431,16 @@ export interface components {
              * @default
              */
             banner: string;
+            /**
+             * Protocol
+             * @default tcp
+             */
+            protocol: string;
+            /**
+             * Service Name
+             * @default
+             */
+            service_name: string;
         };
         /**
          * WorkProjectAssetOrigin
@@ -3855,6 +4282,176 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommonResponse_ListAgentsResponse_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+        };
+    };
+    get_blackboard_route_api_blackboard__project_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_BlackboardSnapshotSchema_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+        };
+    };
+    create_blackboard_node_route_api_blackboard__project_id__nodes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlackboardCreateNodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+        };
+    };
+    update_blackboard_node_route_api_blackboard__project_id__nodes__node_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                node_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlackboardUpdateNodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+        };
+    };
+    delete_blackboard_node_route_api_blackboard__project_id__nodes__node_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                node_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse"];
                 };
             };
             /** @description Unauthorized */
@@ -6782,6 +7379,140 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+        };
+    };
+    preview_scan_report_import_route_api_work_projects__project_id__scan_report_imports_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_preview_scan_report_import_route_api_work_projects__project_id__scan_report_imports_preview_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_ScanReportImportPreviewResponse_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+            /** @description Work project not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+        };
+    };
+    commit_scan_report_import_route_api_work_projects__project_id__scan_report_imports__import_id__commit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                import_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommitScanReportImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_CommitScanReportImportResponse_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+            /** @description Work project or scan report import not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse_Any_"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse"];
                 };
             };
             /** @description Validation Error */

@@ -19,6 +19,10 @@ CONFLICT_RESPONSE = {
     409: {"description": "Conflict", "model": CommonResponse},
 }
 
+RATE_LIMIT_RESPONSE = {
+    429: {"description": "Too Many Requests", "model": CommonResponse},
+}
+
 
 def not_found_response(resource: str) -> dict:
     return {404: {"description": f"{resource} not found", "model": CommonResponse}}

@@ -22,12 +22,21 @@ class WorkProjectAssetExtraSchema(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     banner: str = Field(default="", max_length=512)
+    protocol: str = Field(default="tcp", min_length=1, max_length=16)
+    service_name: str = Field(default="", max_length=128)
 
-    @field_validator("banner", mode="before")
+    @field_validator("banner", "service_name", mode="before")
     @classmethod
     def normalize_text(cls, value: object) -> object:
         if isinstance(value, str):
             return value.strip()
+        return value
+
+    @field_validator("protocol", mode="before")
+    @classmethod
+    def normalize_protocol(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
         return value
 
 
@@ -36,6 +45,7 @@ def build_asset_identifier(
     host: str,
     port: int | None,
     path: str,
+    protocol: str = "tcp",
 ) -> str:
     """Canonical primary identifier used to distinguish assets within a project."""
     host = host.strip().lower()
@@ -43,7 +53,9 @@ def build_asset_identifier(
     if asset_type == WorkProjectAssetType.BINARY:
         return path
     if asset_type == WorkProjectAssetType.SERVICE:
-        return f"{host}:{port}" if port else host
+        identifier = f"{host}:{port}" if port else host
+        protocol = protocol.strip().lower()
+        return identifier if protocol == "tcp" else f"{identifier}/{protocol}"
     return host
 
 
@@ -105,7 +117,7 @@ class WorkProjectAssetRequest(BaseModel):
 
     @property
     def identifier(self) -> str:
-        return build_asset_identifier(self.type, self.host, self.port, self.path)
+        return build_asset_identifier(self.type, self.host, self.port, self.path, self.extra.protocol)
 
     @property
     def identity(self) -> tuple[WorkProjectAssetType, str]:

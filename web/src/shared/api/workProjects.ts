@@ -1,9 +1,11 @@
-import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
+import { apiDelete, apiForm, apiGet, apiPatch, apiPost } from "./client";
 import { buildQuery } from "./query";
 import type {
   BlackboardProjectPathParams,
   CancelWorkProjectPathParams,
   CancelWorkProjectResponse,
+  CommitScanReportImportRequest,
+  CommitScanReportImportResponse,
   CreateWorkProjectRequest,
   CreateWorkProjectResponse,
   CreateWorkProjectSessionResponse,
@@ -16,6 +18,7 @@ import type {
   QueryWorkProjectsResponse,
   RetryWorkProjectPathParams,
   RetryWorkProjectResponse,
+  ScanReportImportPreviewResponse,
   UpdateWorkProjectMetadataRequest,
   UpdateWorkProjectMetadataResponse,
   WorkProjectPathParams,
@@ -63,6 +66,26 @@ export function retryWorkProject(id: RetryWorkProjectPathParams["id"]) {
 
 export function deleteWorkProject(id: WorkProjectPathParams["id"]) {
   return apiDelete<DeleteWorkProjectResponse>(`${WORK_PROJECTS_PATH}/${id}`);
+}
+
+export function previewScanReportImport(projectId: number, file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  return apiForm<ScanReportImportPreviewResponse>(
+    `${WORK_PROJECTS_PATH}/${projectId}/scan-report-imports/preview`,
+    body,
+  );
+}
+
+export function commitScanReportImport(
+  projectId: number,
+  importId: string,
+  payload: CommitScanReportImportRequest,
+) {
+  return apiPost<CommitScanReportImportResponse>(
+    `${WORK_PROJECTS_PATH}/${projectId}/scan-report-imports/${encodeURIComponent(importId)}/commit`,
+    payload,
+  );
 }
 
 // ── Blackboard ──

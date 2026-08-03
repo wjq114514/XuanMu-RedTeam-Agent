@@ -19,6 +19,7 @@ node_modules
 .xuanmu/tiktoken_cache
 .xuanmu/config.json
 .xuanmu/outputs/
+.xuanmu/scan-reports/
 
 web/node_modules
 web/dist

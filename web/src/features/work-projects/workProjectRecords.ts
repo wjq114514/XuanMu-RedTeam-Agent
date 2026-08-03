@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { showApiError } from "../../shared/api/feedback";
 import { getWorkProjectRecordSnapshot } from "../../shared/api/workProjects";
 import type { WorkProject, WorkProjectGraphSnapshot, WorkProjectRecordSnapshot, WorkProjectRecords } from "../../shared/api/types";
@@ -7,6 +7,7 @@ export type WorkProjectSnapshotState = {
   project: WorkProject | null;
   records: WorkProjectRecords;
   loading: boolean;
+  refresh: () => void;
 };
 
 export const EMPTY_WORK_PROJECT_GRAPH: WorkProjectGraphSnapshot = {
@@ -28,37 +29,40 @@ export async function loadWorkProjectRecordSnapshot(projectId: number): Promise<
 }
 
 export function useWorkProjectRecordSnapshot(projectId: number | null, enabled = true): WorkProjectSnapshotState {
+  const [revision, setRevision] = useState(0);
   const [state, setState] = useState<WorkProjectSnapshotState>({
     project: null,
     records: EMPTY_WORK_PROJECT_RECORDS,
     loading: false,
+    refresh: () => undefined,
   });
+  const refresh = useCallback(() => setRevision((value) => value + 1), []);
 
   useEffect(() => {
     let canceled = false;
     if (!enabled || !projectId) {
-      setState({ project: null, records: EMPTY_WORK_PROJECT_RECORDS, loading: false });
+      setState({ project: null, records: EMPTY_WORK_PROJECT_RECORDS, loading: false, refresh });
       return () => {
         canceled = true;
       };
     }
 
-    setState({ project: null, records: EMPTY_WORK_PROJECT_RECORDS, loading: true });
+    setState({ project: null, records: EMPTY_WORK_PROJECT_RECORDS, loading: true, refresh });
     loadWorkProjectRecordSnapshot(projectId)
       .then((snapshot) => {
-        if (!canceled) setState({ project: snapshot.project, records: snapshot.records, loading: false });
+        if (!canceled) setState({ project: snapshot.project, records: snapshot.records, loading: false, refresh });
       })
       .catch((error) => {
         if (!canceled) {
           showApiError(error);
-          setState({ project: null, records: EMPTY_WORK_PROJECT_RECORDS, loading: false });
+          setState({ project: null, records: EMPTY_WORK_PROJECT_RECORDS, loading: false, refresh });
         }
       });
 
     return () => {
       canceled = true;
     };
-  }, [enabled, projectId]);
+  }, [enabled, projectId, refresh, revision]);
 
   return state;
 }

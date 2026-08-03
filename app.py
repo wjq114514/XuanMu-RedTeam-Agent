@@ -27,6 +27,7 @@ from core.runtime.session import get_agent_pool
 from database import close_engine, create_all_tables, init_engine
 from logger import get_logger
 from middleware.auth import JwtAuthMiddleware
+from middleware.scan_report_uploads import ScanReportUploadRateLimitMiddleware
 from middleware.response import (
     CommonResponseStatusMiddleware,
     http_exception_handler,
@@ -44,6 +45,7 @@ from router.sandbox.images import router as sandbox_image_router
 from router.system_config.config import router as system_config_router
 from router.system_user.users import router as system_user_router
 from router.work_project.projects import router as work_project_router
+from router.work_project.scan_report_imports import router as scan_report_import_router
 from schema.system_user.users import SystemUserRole
 from service.agent.recovery import recover_pending_sessions
 from service.system_user.users import create_system_user, query_system_user_by_username
@@ -134,6 +136,7 @@ def create_app() -> FastAPI:
     logger.debug("exception handlers added")
 
     app.add_middleware(CommonResponseStatusMiddleware)
+    app.add_middleware(ScanReportUploadRateLimitMiddleware)
     app.add_middleware(JwtAuthMiddleware)
     logger.debug("middleware added")
 
@@ -143,6 +146,7 @@ def create_app() -> FastAPI:
     app.include_router(sandbox_image_router, prefix=API_PREFIX)
     app.include_router(sandbox_container_router, prefix=API_PREFIX)
     app.include_router(work_project_router, prefix=API_PREFIX)
+    app.include_router(scan_report_import_router, prefix=API_PREFIX)
     app.include_router(agent_router, prefix=API_PREFIX)
     app.include_router(agent_session_router, prefix=API_PREFIX)
     app.include_router(blackboard_router, prefix=API_PREFIX)

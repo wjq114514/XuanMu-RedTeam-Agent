@@ -20,7 +20,7 @@ type WorkProjectInfoModalProps = {
 };
 
 export function WorkProjectInfoModal({ open, projectId, initialTab = "assets", onClose }: WorkProjectInfoModalProps) {
-  const { project, records, loading } = useWorkProjectRecordSnapshot(projectId, open);
+  const { project, records, loading, refresh } = useWorkProjectRecordSnapshot(projectId, open);
 
   return (
     <Modal
@@ -83,7 +83,8 @@ export function WorkProjectInfoModal({ open, projectId, initialTab = "assets", o
               <WorkProjectRecordTabs
                 records={records}
                 initialTab={initialTab}
-                projectId={projectId ?? undefined}
+                 projectId={projectId ?? undefined}
+                 onRecordsChanged={refresh}
               />
             </section>
           </div>

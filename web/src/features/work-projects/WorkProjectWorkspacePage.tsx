@@ -12,7 +12,7 @@ export function WorkProjectWorkspacePage() {
   const navigate = useNavigate();
   const projectId = Number(params.projectId);
   const validProjectId = Number.isFinite(projectId) && projectId > 0 ? projectId : null;
-  const { project, records, loading } = useWorkProjectRecordSnapshot(validProjectId);
+  const { project, records, loading, refresh } = useWorkProjectRecordSnapshot(validProjectId);
 
   const metrics = useMemo(() => [
     { label: "Assets", value: records.assets.length },
@@ -51,7 +51,7 @@ export function WorkProjectWorkspacePage() {
       <MetricStrip metrics={metrics} />
 
       <Spin spinning={loading}>
-        <WorkProjectRecordTabs records={records} projectId={validProjectId} className="workspace-tabs" />
+        <WorkProjectRecordTabs records={records} projectId={validProjectId} className="workspace-tabs" onRecordsChanged={refresh} />
       </Spin>
     </section>
   );

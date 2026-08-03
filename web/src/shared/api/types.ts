@@ -180,6 +180,11 @@ export type ListWorkProjectSessionsResponse = JsonResponse<paths["/api/work-proj
 export type CreateWorkProjectSessionResponse = JsonResponse<paths["/api/work-projects/{id}/sessions"]["post"]>;
 export type DeleteWorkProjectSessionResponse = JsonResponse<paths["/api/work-projects/{id}/sessions/{session_id}"]["delete"]>;
 export type GetWorkProjectRecordSnapshotResponse = JsonResponse<paths["/api/work-projects/{id}/record-snapshot"]["get"]>;
+export type ScanReportImportPreviewResponse = JsonResponse<paths["/api/work-projects/{project_id}/scan-report-imports/preview"]["post"]>;
+export type ScanReportImportPreview = NonNullable<ScanReportImportPreviewResponse["data"]>;
+export type ScanReportAssetCandidate = components["schemas"]["ScanReportAssetCandidate"];
+export type CommitScanReportImportRequest = JsonRequestBody<paths["/api/work-projects/{project_id}/scan-report-imports/{import_id}/commit"]["post"]>;
+export type CommitScanReportImportResponse = JsonResponse<paths["/api/work-projects/{project_id}/scan-report-imports/{import_id}/commit"]["post"]>;
 
 // ── Blackboard (manual types, not from generated schema) ──
 export type BlackboardNodeType = "fact" | "intent" | "hint";

@@ -26,6 +26,7 @@ from model.work_project.graph import (
     WorkProjectGraphEdge,
 )
 from model.work_project.projects import WorkProject, WorkProjectOwner, WorkProjectSandboxContainer
+from model.work_project.scan_report_imports import ScanReportImport
 from utils.sdk_tables import BOOTSTRAP_SESSION_ID
 
 
@@ -34,7 +35,7 @@ logger = get_logger(__name__)
 # registered so SQLModel.metadata picks every table up at create_all time
 _registered_models = [
     SystemUser, ManagedHost, EgressProxy, SandboxImage, SandboxContainer, WorkProject, WorkProjectOwner, WorkProjectSandboxContainer,
-    WorkProjectAsset, WorkProjectFinding,
+    WorkProjectAsset, WorkProjectFinding, ScanReportImport,
     WorkProjectGraphEdge, WorkProjectAttackPath, WorkProjectAttackPathStep,
     BlackboardNode,
     AgentSessionMeta, AgentMessageMeta, AgentContextCompaction,

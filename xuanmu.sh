@@ -6,6 +6,7 @@
 #   ./xuanmu.sh stop     停止 (后端 + PG)
 #   ./xuanmu.sh restart  重启
 #   ./xuanmu.sh status   查看状态
+#   ./xuanmu.sh gen-api  重新生成前端 API 契约 (openapi.json -> schema.ts)
 # ============================================================
 set -e
 
@@ -202,6 +203,34 @@ show_status() {
     fi
 }
 
+# ---------- 重新生成前端 API 契约 ----------
+gen_api() {
+    echo "重新生成前端 API 契约 (openapi.json -> schema.ts)..."
+    load_venv
+
+    info "导出 OpenAPI schema (export_schema.py)..."
+    "$VENV_DIR/bin/python" scripts/export_schema.py
+    ok "openapi.json + constants.ts 已更新"
+
+    if [ ! -d "$PROJECT_DIR/web/node_modules" ]; then
+        info "安装前端依赖 (npm install)..."
+        (cd "$PROJECT_DIR/web" && npm install)
+    fi
+    info "生成 schema.ts (openapi-typescript)..."
+    (cd "$PROJECT_DIR/web" && npm run generate:api)
+    ok "schema.ts 已更新"
+
+    info "运行类型检查 (typecheck)..."
+    (cd "$PROJECT_DIR/web" && npm run typecheck)
+    ok "类型检查通过"
+
+    echo ""
+    echo "  ✅ 生成完毕！请检查 git diff 并提交："
+    echo "     git add web/openapi.json web/src/shared/api/generated/"
+    echo "     git commit -m \"chore: regenerate API schema\""
+    echo "     git push"
+}
+
 # ---------- 主入口 ----------
 case "${1:-start}" in
     start)
@@ -241,8 +270,11 @@ case "${1:-start}" in
     status)
         show_status
         ;;
+    gen-api)
+        gen_api
+        ;;
     *)
-        echo "用法: $0 {start|stop|restart|status}"
+        echo "用法: $0 {start|stop|restart|status|gen-api}"
         exit 1
         ;;
 esac

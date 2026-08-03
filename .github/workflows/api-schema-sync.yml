@@ -1,0 +1,69 @@
+name: 'API Schema Sync Check'
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app.py'
+      - 'app/**'
+      - 'router/**'
+      - 'schema/**'
+      - 'middleware/**'
+      - 'scripts/export_schema.py'
+      - 'web/openapi.json'
+      - 'web/src/shared/api/**'
+      - 'web/package.json'
+      - 'web/package-lock.json'
+  pull_request:
+    paths:
+      - 'app.py'
+      - 'app/**'
+      - 'router/**'
+      - 'schema/**'
+      - 'middleware/**'
+      - 'scripts/export_schema.py'
+      - 'web/openapi.json'
+      - 'web/src/shared/api/**'
+      - 'web/package.json'
+      - 'web/package-lock.json'
+  workflow_dispatch:
+
+jobs:
+  check-api-schema-sync:
+    runs-on: ubuntu-latest
+    name: Check API schema is in sync
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci || npm install
+
+      - name: Regenerate OpenAPI schema from backend
+        run: python scripts/export_schema.py
+
+      - name: Regenerate TypeScript schema
+        working-directory: web
+        run: npm run generate:api
+
+      - name: Fail if generated files are out of date
+        run: |
+          # 重新生成的产物与提交不一致 => git diff 非空 => exit 1 => 标红提醒
+          git diff --exit-code -- web/openapi.json web/src/shared/api/generated/

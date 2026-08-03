@@ -7452,6 +7452,15 @@ export interface operations {
                     "application/json": components["schemas"]["CommonResponse_Any_"];
                 };
             };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonResponse"];
+                };
+            };
         };
     };
     commit_scan_report_import_route_api_work_projects__project_id__scan_report_imports__import_id__commit_post: {

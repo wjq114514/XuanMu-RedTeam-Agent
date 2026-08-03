@@ -30,4 +30,5 @@ web/dist-app
 web/dist-landing
 
 .postgres-data
+.pg-socket
 .pgadmin-data

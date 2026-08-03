@@ -14,6 +14,8 @@ cd "$(dirname "$0")"
 PROJECT_DIR="$(pwd)"
 VENV_DIR="$PROJECT_DIR/.venv"
 PG_DATA="$PROJECT_DIR/.postgres-data"
+PG_SOCKET_DIR="$PROJECT_DIR/.pg-socket"
+CONFIG_FILE="$PROJECT_DIR/.xuanmu/config.json"
 LOG_FILE="/tmp/xuanmu-root.log"
 PORT=8002
 
@@ -39,16 +41,62 @@ detect_pg_bin() {
     exit 1
 }
 
+# ---------- 探测 PG 配套工具 (initdb / psql) ----------
+detect_pg_tool() {
+    local TOOL="$1"
+    command -v "$TOOL" 2>/dev/null && return 0
+    ls "/usr/lib/postgresql/"*/bin/"$TOOL" 2>/dev/null | sort -V | tail -n 1 && return 0
+    ls "/usr/local/pgsql/bin/$TOOL" 2>/dev/null | tail -n 1 && return 0
+    return 1
+}
+
+# ---------- 读取 config.json 数据库配置 (不硬编码凭据) ----------
+# config.json 的 database 凭据由 setup.sh 随机生成后写入，这里统一从这里读取
+read_db_config() {
+    if [ ! -f "$CONFIG_FILE" ]; then
+        err "未找到配置文件 $CONFIG_FILE，请先运行 ./setup.sh 初始化"
+        exit 1
+    fi
+    local PY
+    if [ -x "$VENV_DIR/bin/python" ]; then
+        PY="$VENV_DIR/bin/python"
+    else
+        PY=python3
+    fi
+    local OUT
+    OUT=$("$PY" - "$CONFIG_FILE" <<'PYEOF' 2>/dev/null
+import json
+import shlex
+import sys
+cfg = json.load(open(sys.argv[1]))["database"]
+for k, name in (("host", "HOST"), ("port", "PORT"), ("database", "NAME"),
+                ("username", "USER"), ("password", "PASS")):
+    v = cfg.get(k, "")
+    print(f"DB_{name}={shlex.quote(str(v))}")
+PYEOF
+)
+    if [ $? -ne 0 ]; then
+        err "无法解析 $CONFIG_FILE 的 database 配置"
+        exit 1
+    fi
+    eval "$OUT"
+    [ -n "$DB_USER" ] || { err "config.json 缺少 database.username"; exit 1; }
+    [ -n "$DB_PASS" ] || { err "config.json 缺少 database.password"; exit 1; }
+}
+
 # ---------- 启动 PostgreSQL ----------
 start_pg() {
     echo "[1/4] 检查 PostgreSQL..."
+    read_db_config
     if pg_running; then
         ok "PostgreSQL 已在运行"
+        ensure_local_trust
+        ensure_pg_user
         return
     fi
+    mkdir -p "$PG_SOCKET_DIR"
     if [ ! -d "$PG_DATA" ]; then
-        err "未找到 .postgres-data，请先运行 ./setup.sh 初始化"
-        exit 1
+        init_pg
     fi
     echo "  ⏳ 启动项目专属 PostgreSQL..."
     # PG 数据目录归当前用户所有，必须以该用户身份启动，root 会被 PG 拒绝
@@ -56,15 +104,83 @@ start_pg() {
     rm -f /tmp/xuanmu-pg.log 2>/dev/null || sudo rm -f /tmp/xuanmu-pg.log 2>/dev/null || true
     PG_BIN=$(detect_pg_bin)
     info "使用 PostgreSQL: $PG_BIN"
-    setsid nohup "$PG_BIN" -D "$PG_DATA" -h 127.0.0.1 -p 5432 -k /tmp \
+    setsid nohup "$PG_BIN" -D "$PG_DATA" -h 127.0.0.1 -p 5432 -k "$PG_SOCKET_DIR" \
         > /tmp/xuanmu-pg.log 2>&1 < /dev/null &
     sleep 3
     if pg_running; then
         ok "PostgreSQL 启动成功"
+        ensure_local_trust
+        ensure_pg_user
     else
         err "PostgreSQL 启动失败，查看 /tmp/xuanmu-pg.log"
         exit 1
     fi
+}
+
+# ---------- 确保本地 socket 走 trust (管理员免密) ----------
+# 项目专属实例的 local 认证需为 trust，否则 psql 会卡在密码提示
+# 仅影响本地 socket，TCP (127.0.0.1) 仍走 scram-sha-256 密码认证
+ensure_local_trust() {
+    local HBA="$PG_DATA/pg_hba.conf"
+    [ -f "$HBA" ] || return 0
+    if grep -qE '^local\s+all\s+all\s+(scram-sha-256|md5|peer)\s*$' "$HBA"; then
+        cp "$HBA" "$HBA.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+        sed -i -E 's/^local\s+all\s+all\s+scram-sha-256/local all all trust/' "$HBA"
+        sed -i -E 's/^local\s+all\s+all\s+md5/local all all trust/' "$HBA"
+        sed -i -E 's/^local\s+all\s+all\s+peer/local all all trust/' "$HBA"
+        local MASTER_PID="$PG_DATA/postmaster.pid"
+        if [ -f "$MASTER_PID" ]; then
+            kill -HUP "$(head -n 1 "$MASTER_PID")" 2>/dev/null || true
+            sleep 1
+        fi
+        info "已将 pg_hba.conf local 认证改为 trust (已备份)"
+    fi
+}
+
+# ---------- 初始化项目专属 PostgreSQL (initdb) ----------
+init_pg() {
+    echo "  ⏳ 首次运行，初始化项目专属 PostgreSQL..."
+    local INITDB
+    INITDB=$(detect_pg_tool initdb) || {
+        err "未找到 initdb，请确认已安装 PostgreSQL"
+        exit 1
+    }
+    info "使用 initdb: $INITDB"
+    "$INITDB" -D "$PG_DATA" -U postgres --auth-local=trust --auth-host=scram-sha-256 \
+        > /tmp/xuanmu-initdb.log 2>&1 || {
+        err "initdb 失败，查看 /tmp/xuanmu-initdb.log"
+        exit 1
+    }
+    ok "数据目录初始化完成: .postgres-data"
+}
+
+# ---------- 确保数据库用户/库存在 (幂等，凭据来自 config.json) ----------
+ensure_pg_user() {
+    local PSQL SUPERUSER
+    PSQL=$(detect_pg_tool psql) || {
+        err "未找到 psql，请确认已安装 PostgreSQL"
+        exit 1
+    }
+    # 探测可用的超级用户：优先 postgres，不存在则回退到 config.json 的 DB_USER
+    # （兼容手动初始化的旧数据目录，其超级用户可能是 root）
+    SUPERUSER="postgres"
+    if ! "$PSQL" -w -h "$PG_SOCKET_DIR" -U postgres -d postgres -tAc "SELECT 1" >/dev/null 2>&1; then
+        SUPERUSER="$DB_USER"
+        info "管理员角色 postgres 不存在，改用 $SUPERUSER"
+    fi
+    # 通过项目专属 socket 以 trust 免密连接 postgres 管理员
+    # 幂等创建/修正用户与数据库，凭据全部来自 config.json（不硬编码）
+    # 注意：psql -c 不进行变量替换，必须用 heredoc 交互模式 + \gexec 条件执行
+    "$PSQL" -w -h "$PG_SOCKET_DIR" -U "$SUPERUSER" -d postgres \
+        -v db_user="$DB_USER" -v db_pass="$DB_PASS" <<'SQL'
+SELECT 'CREATE USER ' || quote_ident(:'db_user') || ' WITH PASSWORD ' || quote_literal(:'db_pass') || ' SUPERUSER' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'db_user')\gexec
+SELECT 'ALTER USER ' || quote_ident(:'db_user') || ' WITH PASSWORD ' || quote_literal(:'db_pass') || ' SUPERUSER' WHERE EXISTS (SELECT FROM pg_roles WHERE rolname = :'db_user')\gexec
+SQL
+    "$PSQL" -w -h "$PG_SOCKET_DIR" -U "$SUPERUSER" -d postgres \
+        -v db_name="$DB_NAME" -v db_user="$DB_USER" <<'SQL'
+SELECT 'CREATE DATABASE ' || quote_ident(:'db_name') || ' OWNER ' || quote_ident(:'db_user') WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db_name')\gexec
+SQL
+    ok "数据库用户 $DB_USER / 库 $DB_NAME 已就绪 (凭据来自 config.json)"
 }
 
 # ---------- 加载虚拟环境 ----------

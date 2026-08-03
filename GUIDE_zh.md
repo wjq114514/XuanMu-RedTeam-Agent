@@ -354,8 +354,8 @@ XuanMu 有两种 Skill 模式，路径和用途不同：
 
 | 模式 | 路径 | 用途 | 何时生效 |
 |------|------|------|---------|
-| **本地模式** | `项目根目录/.agents/skills/` | 用户自定义 Skill | 无需 Docker，直接可用 |
-| **沙箱模式** | `sandbox/.agents/skills/` | 内置工具 Skill（nmap 等） | 仅 Docker 沙箱容器内生效 |
+| **本地模式** | `项目根目录/.agents/skills/` | 用户自定义 Skill，以及内置 `nmap` Skill | 无需 Docker，直接可用 |
+| **沙箱模式** | `sandbox/.agents/skills/` | 完整的内置工具 Skill | Docker 沙箱容器内生效 |
 
 ### 本地模式（你自建的 Skill）
 
@@ -384,7 +384,7 @@ mkdir -p .agents/skills/my-skill
 
 ### 沙箱模式（内置工具 Skill）
 
-`sandbox/.agents/skills/` 中的 Skill 是项目内置的，**仅在 Docker 沙箱容器内生效**。这些 Skill 对应容器里预装的命令行工具。如果你没启用沙箱（本地模式），它们不会被加载。
+`sandbox/.agents/skills/` 中的 Skill 是项目内置的，对应容器里预装的命令行工具。宿主机模式会额外复用其中的 `nmap` Skill，但不会暴露其他内置 Skill；宿主机仍需自行安装 Nmap。
 
 ### SKILL.md 格式
 
@@ -420,9 +420,9 @@ my-tool --help
 3. Agent 按照 SKILL.md 的指引执行命令
 4. 如果 Skill 目录下有辅助脚本，Agent 可以读取路径后引用
 
-### 内置 Skill 清单（沙箱模式专用）
+### 内置 Skill 清单
 
-以下 Skill 仅在**启用沙箱容器**时生效，全部位于 `sandbox/.agents/skills/`：
+以下 Skill 位于 `sandbox/.agents/skills/`。其中 `nmap` 同时支持宿主机模式，其余仅在启用沙箱容器时生效：
 
 | Skill | 用途 |
 |-------|------|
@@ -439,7 +439,7 @@ my-tool --help
 | `archive-file-triage` | 压缩包分类与解包 |
 | `sandbox-shell` | 沙箱环境基础 Shell 操作 |
 
-> 这些 Skill 主要在**沙箱容器模式**下使用。本地模式（无需 Docker）下只加载 `.agents/skills/` 中的自定义 Skill。
+> 本地模式会加载 `.agents/skills/` 中的自定义 Skill，并额外加载项目内置的 `nmap` Skill。
 
 ### Skills 与 Knowledges 的区别
 

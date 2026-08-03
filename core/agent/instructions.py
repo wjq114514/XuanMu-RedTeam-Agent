@@ -31,6 +31,15 @@ SANDBOX_COMMAND_INSTRUCTIONS = """## Sandbox Command Execution
 """
 
 
+LOCAL_COMMAND_INSTRUCTIONS = """## Local Command Execution
+
+- Local command tools execute directly on the backend host. Before using `nmap`, call `load_skill` with `name: nmap` and follow the loaded workflow.
+- Use `execute_command` for bounded commands and pass an explicit `timeout_seconds` no greater than 600. Raw output is captured in the returned `output_file`.
+- Use `read_command_output` with the returned path to inspect only the needed result lines. Do not rerun a scan merely to recover output that already exists.
+- Keep network scans staged and bounded so each command can finish within its timeout. If a scan times out, preserve the partial artifact, narrow the target or port set, and rerun only the incomplete stage.
+"""
+
+
 KNOWLEDGE_TOOL_INSTRUCTIONS = """## Knowledge Tools
 
 - Use knowledge tools only for reusable professional methodology that should benefit future work by the same agent.
@@ -108,6 +117,7 @@ def build_instructions(
     has_sandbox_container: bool,
     include_sandbox_commands: bool,
     include_sandbox_skills: bool,
+    include_local_commands: bool,
     include_agent_knowledges: bool,
     include_work_project_tools: bool,
     include_delegation_tools: bool,
@@ -120,6 +130,8 @@ def build_instructions(
         runtime_guidance.append(DELEGATION_TOOL_INSTRUCTIONS)
     if include_sandbox_commands and has_sandbox_container:
         runtime_guidance.append(SANDBOX_COMMAND_INSTRUCTIONS)
+    if include_local_commands:
+        runtime_guidance.append(LOCAL_COMMAND_INSTRUCTIONS)
     if include_work_project_tools:
         runtime_guidance.append(WORK_PROJECT_INSTRUCTIONS)
     if include_blackboard_tools:

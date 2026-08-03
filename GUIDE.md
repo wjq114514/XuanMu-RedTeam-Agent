@@ -338,8 +338,8 @@ XuanMu has two Skill modes with different paths and purposes:
 
 | Mode | Path | Purpose | When Available |
 |------|------|---------|----------------|
-| **Local** | `project-root/.agents/skills/` | User-defined skills | No Docker, always available |
-| **Sandbox** | `sandbox/.agents/skills/` | Built-in tool skills (nmap etc.) | Docker sandbox only |
+| **Local** | `project-root/.agents/skills/` | User-defined skills plus the built-in `nmap` skill | No Docker, always available |
+| **Sandbox** | `sandbox/.agents/skills/` | Full built-in tool skill set | Docker sandbox only |
 
 ### Local Mode (Your Own Skills)
 
@@ -368,7 +368,7 @@ project-root/
 
 ### Sandbox Mode (Built-in Tool Skills)
 
-Skills under `sandbox/.agents/skills/` are built into the project and **only available inside Docker sandbox containers**. They correspond to CLI tools pre-installed in the container image. If you're not using sandbox mode, they won't be loaded.
+Skills under `sandbox/.agents/skills/` are built into the project and correspond to CLI tools installed in the sandbox image. Local execution also reuses the built-in `nmap` skill, but no other built-in sandbox skill; Nmap must still be installed on the host.
 
 ### SKILL.md Format
 

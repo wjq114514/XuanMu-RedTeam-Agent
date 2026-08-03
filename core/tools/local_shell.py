@@ -25,11 +25,13 @@ from utils.markdown import markdown_body_without_front_matter
 
 # ── constants ──────────────────────────────────────────────────────────────
 
-_SYNC_TIMEOUT = 60  # seconds
+_SYNC_TIMEOUT = 600  # seconds
 _ASYNC_TIMEOUT = 600
 _OUTPUT_DIR = ".xuanmu/outputs"
 _SKILL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 _LOCAL_SKILLS_DIR = ".agents/skills"
+_BUILTIN_LOCAL_SKILLS_DIR = "sandbox/.agents/skills"
+_BUILTIN_LOCAL_SKILL_NAMES = frozenset({"nmap"})
 _MAX_OUTPUT_BYTES = 100_000
 _MAX_OUTPUT_LINES = 5_000
 _ASYNC_CONCURRENCY_LIMIT = 5
@@ -72,6 +74,30 @@ def _output_path(run_id: str) -> str:
     return str(_ensure_output_dir() / f"{run_id}.out")
 
 
+def _local_skill_names() -> list[str]:
+    skills_dir = Path(_LOCAL_SKILLS_DIR)
+    names = {
+        directory.name
+        for directory in skills_dir.iterdir()
+        if directory.is_dir() and _SKILL_NAME_PATTERN.fullmatch(directory.name)
+    } if skills_dir.is_dir() else set()
+    builtin_dir = Path(_BUILTIN_LOCAL_SKILLS_DIR)
+    names.update(
+        name for name in _BUILTIN_LOCAL_SKILL_NAMES
+        if (builtin_dir / name / "SKILL.md").is_file()
+    )
+    return sorted(names)
+
+
+def _local_skill_root(skill_name: str) -> Path:
+    custom_skill_root = Path(_LOCAL_SKILLS_DIR) / skill_name
+    if (custom_skill_root / "SKILL.md").is_file():
+        return custom_skill_root
+    if skill_name in _BUILTIN_LOCAL_SKILL_NAMES:
+        return Path(_BUILTIN_LOCAL_SKILLS_DIR) / skill_name
+    return custom_skill_root
+
+
 def _read_output(path: str, start_line: int = 1, line_count: int = 500) -> str:
     try:
         lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
@@ -81,6 +107,36 @@ def _read_output(path: str, start_line: int = 1, line_count: int = 500) -> str:
     end = min(start_line + line_count - 1, total)
     selected = lines[start_line - 1 : end]
     return "\n".join(selected)
+
+
+def _output_stats(path: str) -> tuple[int, int]:
+    output_path = Path(path)
+    try:
+        output_bytes = output_path.stat().st_size
+        with output_path.open("rb") as output:
+            output_lines = sum(chunk.count(b"\n") for chunk in iter(lambda: output.read(64 * 1024), b""))
+    except FileNotFoundError:
+        return 0, 0
+    return output_bytes, output_lines
+
+
+async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
+    if proc.returncode is not None:
+        return
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=2)
+        return
+    except asyncio.TimeoutError:
+        pass
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return
+    await proc.wait()
 
 
 # ── result helpers ─────────────────────────────────────────────────────────
@@ -131,7 +187,7 @@ async def execute_command(
 
     Args:
         command: Shell command to execute.
-        timeout_seconds: Max execution time in seconds (1-60).
+        timeout_seconds: Max execution time in seconds (1-600).
 
     Returns:
         JSON metadata with status, output_file, output_bytes, output_lines,
@@ -145,34 +201,41 @@ async def execute_command(
     out_path = _output_path(run_id)
 
     try:
-        proc = await asyncio.create_subprocess_shell(
-            command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            shell=True,
-            executable="/bin/bash",
-        )
-
-        try:
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
-            return _result(
-                SandboxAsyncJobStatus.TIMED_OUT,
-                error=f"Command timed out after {timeout}s",
+        with Path(out_path).open("wb") as output:
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=output,
+                stderr=asyncio.subprocess.STDOUT,
+                shell=True,
+                executable="/bin/bash",
+                start_new_session=True,
             )
 
-        output = stdout.decode("utf-8", errors="replace")[:_MAX_OUTPUT_BYTES]
-        lines = output.splitlines()
-        Path(out_path).write_text(output, encoding="utf-8")
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                await _terminate_process_group(proc)
+                output.flush()
+                output_bytes, output_lines = _output_stats(out_path)
+                return _result(
+                    SandboxAsyncJobStatus.FAILED,
+                    output_file=out_path,
+                    output_bytes=output_bytes,
+                    output_lines=output_lines,
+                    error=f"Command timed out after {timeout}s; partial output was preserved.",
+                )
+            except asyncio.CancelledError:
+                await asyncio.shield(_terminate_process_group(proc))
+                raise
+
+        output_bytes, output_lines = _output_stats(out_path)
         exit_code = proc.returncode or 0
 
         return _result(
             SandboxAsyncJobStatus.COMPLETED if exit_code == 0 else SandboxAsyncJobStatus.FAILED,
             output_file=out_path,
-            output_bytes=len(output.encode("utf-8")),
-            output_lines=len(lines),
+            output_bytes=output_bytes,
+            output_lines=output_lines,
             exit_code=exit_code,
         )
     except asyncio.CancelledError:
@@ -276,7 +339,7 @@ async def run_background_command(
 
         asyncio.create_task(_collect(job, timeout))
 
-        return _result(SandboxAsyncJobStatus.RUNNING, run_id=run_id)
+        return _result(SandboxAsyncJobStatus.RUNNING, output_file=out_path, run_id=run_id)
     except asyncio.CancelledError:
         raise
     except Exception as exc:
@@ -306,35 +369,26 @@ async def cancel_background_command(ctx: RunContextWrapper[AgentRuntimeContext],
     except Exception as exc:
         return _error(f"Failed to cancel: {exc}")
 
-    return _result(SandboxAsyncJobStatus.CANCELLED, run_id=run_id)
+    return _result(SandboxAsyncJobStatus.CANCELED, run_id=run_id)
 
 
 @function_tool
 async def list_skills(ctx: RunContextWrapper[AgentRuntimeContext]) -> str:
-    """List available skill directories under .agents/skills/.
+    """List built-in skills available to local shell execution.
 
     Returns:
         JSON with a list of available skill names.
     """
-    skills_dir = Path(_LOCAL_SKILLS_DIR)
-    if not skills_dir.is_dir():
-        import json
-        return json.dumps({"skills": [], "root": str(skills_dir)}, ensure_ascii=False)
-
-    names = sorted(
-        d.name for d in skills_dir.iterdir()
-        if d.is_dir() and _SKILL_NAME_PATTERN.fullmatch(d.name)
-    )
     import json
-    return json.dumps({"skills": names, "root": str(skills_dir)}, ensure_ascii=False)
+    return json.dumps({"skills": _local_skill_names(), "root": _LOCAL_SKILLS_DIR}, ensure_ascii=False)
 
 
 @function_tool
 async def load_skill(ctx: RunContextWrapper[AgentRuntimeContext], name: str) -> str:
-    """Load a skill definition from the local .agents/skills/ directory.
+    """Load a built-in skill for local shell execution.
 
     Args:
-        name: Skill directory name under .agents/skills/.
+        name: Skill name returned by list_skills.
 
     Returns:
         JSON status with skill body and resource file list.
@@ -347,7 +401,7 @@ async def load_skill(ctx: RunContextWrapper[AgentRuntimeContext], name: str) -> 
             "output": "Skill name must contain only letters, numbers, dot, underscore, or dash.",
         }, ensure_ascii=False)
 
-    skill_root = Path(f"{_LOCAL_SKILLS_DIR}/{skill_name}")
+    skill_root = _local_skill_root(skill_name)
     skill_file = skill_root / "SKILL.md"
 
     if not skill_file.is_file():

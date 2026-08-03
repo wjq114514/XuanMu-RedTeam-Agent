@@ -30,6 +30,7 @@ from core.tools.blackboard import (
     update_node_status,
 )
 from core.tools.knowledge import find_knowledge, load_knowledge
+from core.tools.local_shell import execute_command as execute_local_command
 from core.tools.sandbox import (
     execute_async_command,
     execute_sync_command,
@@ -139,6 +140,7 @@ class AgentRegistry:
             has_sandbox_container=graph.tool_snapshot.sandbox_container_id is not None,
             include_sandbox_commands=_has_tool(spec, execute_sync_command) or _has_tool(spec, execute_async_command),
             include_sandbox_skills=_has_tool(spec, load_skill),
+            include_local_commands=_has_tool(spec, execute_local_command),
             include_agent_knowledges=_has_any_tool(spec, (find_knowledge, load_knowledge)),
             include_work_project_tools=(
                 graph.tool_snapshot.work_project_id is not None

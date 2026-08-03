@@ -20,6 +20,7 @@ node_modules
 .xuanmu/config.json
 .xuanmu/outputs/
 .xuanmu/scan-reports/
+/recon_*/
 
 web/node_modules
 web/dist

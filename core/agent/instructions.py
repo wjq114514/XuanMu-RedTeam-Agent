@@ -36,6 +36,7 @@ LOCAL_COMMAND_INSTRUCTIONS = """## Local Command Execution
 - Local command tools execute directly on the backend host. Before using `nmap`, call `load_skill` with `name: nmap` and follow the loaded workflow.
 - Use `execute_command` for bounded commands and pass an explicit `timeout_seconds` no greater than 600. Raw output is captured in the returned `output_file`.
 - Use `read_command_output` with the returned path to inspect only the needed result lines. Do not rerun a scan merely to recover output that already exists.
+- Store generated reports, captures, extracted files, and task directories under `.xuanmu/outputs/<tool-or-task>/`. Never create `recon_*`, report, result, or temporary directories at the repository root.
 - Keep network scans staged and bounded so each command can finish within its timeout. If a scan times out, preserve the partial artifact, narrow the target or port set, and rerun only the incomplete stage.
 """
 

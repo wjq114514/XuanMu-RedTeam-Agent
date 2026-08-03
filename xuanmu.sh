@@ -27,6 +27,17 @@ pg_running() {
     ss -tln 2>/dev/null | grep -q "127.0.0.1:5432"
 }
 
+# ---------- 自动探测 PostgreSQL 二进制路径 ----------
+# 兼容 Arch (/usr/bin/postgres) 与 Debian/Kali (/usr/lib/postgresql/<ver>/bin/postgres)
+detect_pg_bin() {
+    local BIN
+    BIN=$(command -v postgres 2>/dev/null) && { echo "$BIN"; return 0; }
+    BIN=$(ls /usr/lib/postgresql/*/bin/postgres 2>/dev/null | sort -V | tail -n 1) && { echo "$BIN"; return 0; }
+    BIN=$(ls /usr/local/pgsql/bin/postgres 2>/dev/null | tail -n 1) && { echo "$BIN"; return 0; }
+    err "未找到 postgres 可执行文件，请确认已安装 PostgreSQL"
+    exit 1
+}
+
 # ---------- 启动 PostgreSQL ----------
 start_pg() {
     echo "[1/4] 检查 PostgreSQL..."
@@ -42,7 +53,9 @@ start_pg() {
     # PG 数据目录归当前用户所有，必须以该用户身份启动，root 会被 PG 拒绝
     # 清理可能由 root 创建的旧日志（当前用户无权删时用 sudo 兜底）
     rm -f /tmp/xuanmu-pg.log 2>/dev/null || sudo rm -f /tmp/xuanmu-pg.log 2>/dev/null || true
-    setsid nohup /usr/bin/postgres -D "$PG_DATA" -h 127.0.0.1 -p 5432 -k /tmp \
+    PG_BIN=$(detect_pg_bin)
+    info "使用 PostgreSQL: $PG_BIN"
+    setsid nohup "$PG_BIN" -D "$PG_DATA" -h 127.0.0.1 -p 5432 -k /tmp \
         > /tmp/xuanmu-pg.log 2>&1 < /dev/null &
     sleep 3
     if pg_running; then

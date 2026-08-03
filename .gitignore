@@ -21,7 +21,7 @@ node_modules
 .xuanmu/config.json.*
 .xuanmu/outputs/
 .xuanmu/scan-reports/
-.xuanmu/agents/cpe/knowledges/ms17-010-*.md
+.xuanmu/agents/*/knowledges/
 /recon_*/
 
 web/node_modules

@@ -85,10 +85,10 @@ PYEOF
         echo "========================================"
         echo "  智能体配置摘要"
         echo "========================================"
-        python3 <<-'PYEOF'
+        python3 <<-PYEOF
 import json
 
-with open("/root/Desktop/Z3r0-0.2.1/.xuanmu/config.json", "r") as f:
+with open("$CONFIG_FILE", "r") as f:
     cfg = json.load(f)
 
 agents = cfg.get("agents", {})

@@ -58,6 +58,9 @@ else
 fi
 
 # ---------- 3. 配置 PostgreSQL ----------
+# 生成安全凭据（可通过环境变量覆盖，避免硬编码密码进仓库）
+DB_PASSWORD="${DB_PASSWORD:-$(openssl rand -hex 16)}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(openssl rand -hex 8)}"
 info "配置 PostgreSQL..."
 if pg_isready -q 2>/dev/null; then
     log "PostgreSQL 已在运行"
@@ -86,7 +89,7 @@ fi
 # 创建数据库和用户（幂等）
 PG_VERSION=$(pg_config --version 2>/dev/null | grep -oP '\d+' | head -1 || echo "16")
 sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='root'" 2>/dev/null | grep -q 1 || {
-    sudo -u postgres psql -c "CREATE USER root WITH PASSWORD '123456';" >/dev/null 2>&1
+    sudo -u postgres psql -c "CREATE USER root WITH PASSWORD '$DB_PASSWORD';" >/dev/null 2>&1
     log "数据库用户 root 已创建"
 }
 sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='z3r0'" 2>/dev/null | grep -q 1 || {
@@ -111,13 +114,13 @@ with open("$CONFIG_FILE", "r") as f:
     cfg = json.load(f)
 cfg["system"]["encrypt_key"] = "$ENCRYPT_KEY"
 cfg["system"]["bootstrap_admin"]["enabled"] = True
-cfg["system"]["bootstrap_admin"]["password"] = "admin123"
-cfg["system"]["bootstrap_admin"]["email"] = "admin@admin.com"
+cfg["system"]["bootstrap_admin"]["password"] = "$ADMIN_PASSWORD"
+cfg["system"]["bootstrap_admin"]["email"] = "${ADMIN_EMAIL:-admin@admin.com}"
 cfg["database"]["host"] = "127.0.0.1"
 cfg["database"]["port"] = 5432
 cfg["database"]["database"] = "z3r0"
 cfg["database"]["username"] = "root"
-cfg["database"]["password"] = "123456"
+cfg["database"]["password"] = "$DB_PASSWORD"
 # 清空示例 API Key，等待用户填写
 for agent in cfg.get("agents", {}).values():
     agent["api_key"] = ""
@@ -126,6 +129,7 @@ with open("$CONFIG_FILE", "w") as f:
 print("encrypt_key: $ENCRYPT_KEY")
 PYEOF
         log "配置文件已创建: $CONFIG_FILE"
+        warn "数据库与管理员密码已随机生成，见 $CONFIG_FILE（可用环境变量 DB_PASSWORD / ADMIN_PASSWORD 覆盖）"
         warn "请编辑 $CONFIG_FILE 填入 LLM API Key 和模型名"
         warn "需要修改 agents 下每个角色的 api_key / base_url / model 字段"
     else
@@ -293,7 +297,7 @@ echo ""
 echo "  🌐 API 地址:     http://0.0.0.0:8000"
 echo "  📖 API 文档:     http://127.0.0.1:8000/docs"
 echo "  🖥️  前端界面:    http://127.0.0.1:8000"
-echo "  👤 管理员登录:   admin@admin.com / admin123"
+echo "  👤 管理员登录:   admin@admin.com / 密码见 .xuanmu/config.json"
 echo ""
 echo "  按 Ctrl+C 停止服务"
 echo "========================================"

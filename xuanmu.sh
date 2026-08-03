@@ -39,6 +39,9 @@ start_pg() {
         exit 1
     fi
     echo "  ⏳ 启动项目专属 PostgreSQL..."
+    # PG 数据目录归当前用户所有，必须以该用户身份启动，root 会被 PG 拒绝
+    # 清理可能由 root 创建的旧日志（当前用户无权删时用 sudo 兜底）
+    rm -f /tmp/xuanmu-pg.log 2>/dev/null || sudo rm -f /tmp/xuanmu-pg.log 2>/dev/null || true
     setsid nohup /usr/bin/postgres -D "$PG_DATA" -h 127.0.0.1 -p 5432 -k /tmp \
         > /tmp/xuanmu-pg.log 2>&1 < /dev/null &
     sleep 3
@@ -196,7 +199,7 @@ case "${1:-start}" in
         echo ""
         echo "  🌐 API:     http://127.0.0.1:$PORT"
         echo "  📖 Docs:    http://127.0.0.1:$PORT/docs"
-        echo "  👤 管理员:  admin@admin.com / admin123"
+        echo "  👤 管理员账号: admin@admin.com（密码见 .xuanmu/config.json）"
         echo "  日志: $LOG_FILE"
         ;;
     stop)
@@ -205,7 +208,6 @@ case "${1:-start}" in
     restart)
         echo "===== 重启 XuanMu 后端 ====="
         # 只重启后端，保留 PostgreSQL（避免竞态）
-        local BPID
         BPID=$(pgrep -f "python main.py" | head -n 1 || true)
         if [ -n "$BPID" ]; then
             echo "  ⏳ 停止后端 (PID $BPID)..."

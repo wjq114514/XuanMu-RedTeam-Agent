@@ -18,8 +18,10 @@ node_modules
 .xuanmu/app.log.*
 .xuanmu/tiktoken_cache
 .xuanmu/config.json
+.xuanmu/config.json.*
 .xuanmu/outputs/
 .xuanmu/scan-reports/
+.xuanmu/agents/cpe/knowledges/ms17-010-*.md
 /recon_*/
 
 web/node_modules

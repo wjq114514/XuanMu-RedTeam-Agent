@@ -42,7 +42,9 @@ export function WorkProjectAssets({ project }: { project: WorkProject }) {
 }
 
 export function formatWorkProjectAsset(asset: WorkProjectAsset): string {
-  if (asset.type === WORK_PROJECT_ASSET_TYPE.BINARY) return asset.path || WORK_PROJECT_ASSET_TYPE_LABEL[asset.type];
+  if (asset.type === WORK_PROJECT_ASSET_TYPE.BINARY || asset.type === WORK_PROJECT_ASSET_TYPE.URL) {
+    return asset.path || WORK_PROJECT_ASSET_TYPE_LABEL[asset.type];
+  }
   const host = asset.host || WORK_PROJECT_ASSET_TYPE_LABEL[asset.type];
   const port = asset.port ? `:${asset.port}` : "";
   return `${host}${port}`;

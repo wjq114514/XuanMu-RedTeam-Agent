@@ -163,7 +163,7 @@ async def execute_async_command(
     )
 
 
-@function_tool
+@function_tool(name_override="read_command_output")
 async def read_sandbox_command_output(
     ctx: RunContextWrapper[AgentRuntimeContext],
     output_file: str,

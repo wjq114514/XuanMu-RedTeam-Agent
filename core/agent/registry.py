@@ -132,15 +132,20 @@ class AgentRegistry:
         agent_path = WORKSPACE / "agents" / spec.code
         soul = (agent_path / "SOUL.md").read_text(encoding="utf-8").strip()
         rules = (agent_path / "AGENTS.md").read_text(encoding="utf-8").strip()
+        available_mounts = tuple(
+            mount for mount in spec.tools
+            if _tool_mount_available(mount, graph.tool_snapshot)
+        )
+        available_tools = tuple(mount.tool for mount in available_mounts)
         instructions = build_instructions(
             soul,
             rules,
             spec.code,
             graph.tool_snapshot.sandbox_skill_metadata,
             has_sandbox_container=graph.tool_snapshot.sandbox_container_id is not None,
-            include_sandbox_commands=_has_tool(spec, execute_sync_command) or _has_tool(spec, execute_async_command),
-            include_sandbox_skills=_has_tool(spec, load_skill),
-            include_local_commands=_has_tool(spec, execute_local_command),
+            include_sandbox_commands=execute_sync_command in available_tools or execute_async_command in available_tools,
+            include_sandbox_skills=load_skill in available_tools,
+            include_local_commands=execute_local_command in available_tools,
             include_agent_knowledges=_has_any_tool(spec, (find_knowledge, load_knowledge)),
             include_work_project_tools=(
                 graph.tool_snapshot.work_project_id is not None
@@ -153,10 +158,7 @@ class AgentRegistry:
             ),
         )
 
-        tools: list[Tool] = [
-            mount.tool for mount in spec.tools
-            if _tool_mount_available(mount, graph.tool_snapshot)
-        ]
+        tools: list[Tool] = list(available_tools)
         if spec.subagents:
             tools.extend(_build_subagent_tools(spec, self))
 
@@ -232,6 +234,8 @@ def _has_blackboard_tool(spec: AgentSpec) -> bool:
 
 def _tool_mount_available(mount: ToolMount, snapshot: AgentToolSnapshot) -> bool:
     if mount.requires_sandbox_container and snapshot.sandbox_container_id is None:
+        return False
+    if mount.requires_no_sandbox_container and snapshot.sandbox_container_id is not None:
         return False
     if mount.requires_work_project and snapshot.work_project_id is None:
         return False

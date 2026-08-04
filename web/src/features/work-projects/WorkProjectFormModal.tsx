@@ -230,9 +230,9 @@ export function WorkProjectFormModal({ open, saving, project, onCancel, onSubmit
                   onChange={(type) => isWorkProjectAssetType(type) && updateAsset(index, resetAssetForType(type))}
                 />
               </label>
-              {asset.type === WORK_PROJECT_ASSET_TYPE.BINARY ? (
+              {isPathAsset(asset.type) ? (
                 <label>
-                  <span>Path</span>
+                  <span>{asset.type === WORK_PROJECT_ASSET_TYPE.URL ? "URL" : "Path"}</span>
                   <Input
                     value={asset.path}
                     maxLength={500}
@@ -310,7 +310,7 @@ function scopeAssetsFromProject(project: WorkProject): AssetFormRow[] {
 }
 
 function normalizeAsset(asset: AssetFormRow): WorkProjectAssetRequest {
-  if (asset.type === WORK_PROJECT_ASSET_TYPE.BINARY) {
+  if (isPathAsset(asset.type)) {
     return { type: asset.type, path: asset.path.trim(), host: "", port: null };
   }
   return {
@@ -322,7 +322,7 @@ function normalizeAsset(asset: AssetFormRow): WorkProjectAssetRequest {
 }
 
 function isAssetComplete(asset: WorkProjectAssetRequest): boolean {
-  if (asset.type === WORK_PROJECT_ASSET_TYPE.BINARY) return Boolean(asset.path.trim());
+  if (isPathAsset(asset.type)) return Boolean(asset.path.trim());
   return Boolean(asset.host.trim());
 }
 
@@ -331,7 +331,11 @@ function resetAssetForType(type: WorkProjectAssetRequest["type"]): Partial<Asset
 }
 
 // Label for the `host` input field, which carries a different identifier per asset type.
-const ASSET_HOST_FIELD_LABEL: Record<Exclude<WorkProjectAssetRequest["type"], typeof WORK_PROJECT_ASSET_TYPE.BINARY>, string> = {
+function isPathAsset(type: WorkProjectAssetRequest["type"]): boolean {
+  return type === WORK_PROJECT_ASSET_TYPE.BINARY || type === WORK_PROJECT_ASSET_TYPE.URL;
+}
+
+const ASSET_HOST_FIELD_LABEL: Partial<Record<WorkProjectAssetRequest["type"], string>> = {
   [WORK_PROJECT_ASSET_TYPE.SERVICE]: "Host",
   [WORK_PROJECT_ASSET_TYPE.DOMAIN]: "Domain",
   [WORK_PROJECT_ASSET_TYPE.NETWORK]: "Network (CIDR)",

@@ -9,6 +9,7 @@ class WorkProjectAssetType(StrEnum):
     DOMAIN = "domain"
     NETWORK = "network"
     BINARY = "binary"
+    URL = "url"
 
 
 class WorkProjectAssetOrigin(StrEnum):
@@ -50,7 +51,7 @@ def build_asset_identifier(
     """Canonical primary identifier used to distinguish assets within a project."""
     host = host.strip().lower()
     path = path.strip()
-    if asset_type == WorkProjectAssetType.BINARY:
+    if asset_type in (WorkProjectAssetType.BINARY, WorkProjectAssetType.URL):
         return path
     if asset_type == WorkProjectAssetType.SERVICE:
         identifier = f"{host}:{port}" if port else host
@@ -95,9 +96,9 @@ class WorkProjectAssetRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_required_fields(self) -> "WorkProjectAssetRequest":
-        if self.type == WorkProjectAssetType.BINARY:
+        if self.type in (WorkProjectAssetType.BINARY, WorkProjectAssetType.URL):
             if not self.path:
-                raise ValueError("binary asset path is required")
+                raise ValueError(f"{self.type.value} asset path is required")
             self.host = ""
             self.port = None
             return self

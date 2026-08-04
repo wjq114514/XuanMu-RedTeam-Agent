@@ -5416,7 +5416,8 @@
           "service",
           "domain",
           "network",
-          "binary"
+          "binary",
+          "url"
         ],
         "title": "WorkProjectAssetType",
         "type": "string"

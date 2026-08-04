@@ -404,9 +404,9 @@ my-tool --help
 3. Agent follows the SKILL.md guidance to execute commands
 4. If the skill directory has helper scripts, the agent can reference their paths
 
-### Built-in Skills (Sandbox Mode Only)
+### Built-in Skills
 
-These skills only work with **sandbox containers enabled**:
+These skills are available in sandbox containers. `nmap`, `passive-domain-intel`, and `web-archive-intel` also support local fallback execution:
 
 | Skill | Purpose |
 |-------|---------|
@@ -419,11 +419,13 @@ These skills only work with **sandbox containers enabled**:
 | `ghidra` | Binary reverse analysis |
 | `openssl` | Certificate analysis, TLS diagnostics |
 | `dns-whois` | DNS queries, WHOIS information gathering |
+| `passive-domain-intel` | Passive DNS, RDAP, certificate transparency, and subdomain intelligence |
+| `web-archive-intel` | Historical URL intelligence from Wayback and Common Crawl |
 | `observer-ward` | Web fingerprinting |
 | `archive-file-triage` | Archive classification & unpacking |
 | `sandbox-shell` | Basic sandbox shell operations |
 
-> These skills are primarily used in **sandbox container mode**. In local mode (no Docker), only custom skills under `.agents/skills/` are loaded.
+> Sandbox execution is preferred when a container is bound. Local mode also loads custom skills under `.agents/skills/` and the three local-fallback built-ins listed above.
 
 ### Skills vs Knowledges
 

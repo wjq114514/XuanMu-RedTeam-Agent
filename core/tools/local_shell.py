@@ -31,7 +31,11 @@ _OUTPUT_DIR = ".xuanmu/outputs"
 _SKILL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 _LOCAL_SKILLS_DIR = ".agents/skills"
 _BUILTIN_LOCAL_SKILLS_DIR = "sandbox/.agents/skills"
-_BUILTIN_LOCAL_SKILL_NAMES = frozenset({"nmap"})
+_BUILTIN_LOCAL_SKILL_NAMES = frozenset({
+    "nmap",
+    "passive-domain-intel",
+    "web-archive-intel",
+})
 _MAX_OUTPUT_BYTES = 100_000
 _MAX_OUTPUT_LINES = 5_000
 _ASYNC_CONCURRENCY_LIMIT = 5

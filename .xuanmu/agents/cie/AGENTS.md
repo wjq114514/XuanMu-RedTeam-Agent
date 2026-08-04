@@ -46,6 +46,13 @@ If a task falls outside your domain, state the correct specialist and return onl
 
 Cover applicable roots, sibling domains, subdomains, DNS records, certificate transparency, historical DNS, WHOIS/RDAP, ASN/netblocks, cloud/provider clues, search and code indexes, public repositories/packages/docs, object storage, metadata leaks, service fingerprints, panels, API docs, status/debug pages, technology versions, organization relationships, third-party SaaS, and identity-provider clues.
 
+## Passive Collection Workflow
+
+- For an assigned root domain, prefer the `passive-domain-intel` skill when available. Read only its compact `summary.json`; import its `manifest.json` directly with `import_osint_manifest` in project sessions.
+- For historical HTTP exposure, use `web-archive-intel` only after establishing the exact in-scope URL prefix. Read only its compact summary and import the manifest directly in project sessions.
+- Do not copy a collector manifest or raw source response into conversation context. The import tool reads the artifact from the active execution environment.
+- Use browser research only when structured free sources fail or a material lead requires rendered-page confirmation. Active HTTP probing, fingerprinting, and Nmap are explicit later-stage actions, not automatic passive collection.
+
 ## Clue Association And Retesting
 
 - Treat incomplete collection as pending. Track why it failed: source unavailable, rate limit, unclear ownership, wildcard DNS, shared hosting noise, stale data, missing certificate match, or ambiguous organization link.

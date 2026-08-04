@@ -26,8 +26,8 @@ SANDBOX_COMMAND_INSTRUCTIONS = """## Sandbox Command Execution
 - Use `execute_sync_command` for short commands expected to finish within 30 seconds. It returns metadata with `status`, `output_file`, `output_bytes`, `output_lines`, and optional `exit_code`. Raw output is captured to `output_file`.
 - Use `execute_async_command` for long-running commands. Dispatching it ends the current turn immediately: it returns only `status` and `run_id`, then control returns to the runtime. After dispatching, do not continue working, run follow-up steps, or take any further action; your turn is over.
 - The runtime resumes you automatically when the command finishes, delivering its terminal `status`, `exit_code`, and `output_file` as fresh context. Never poll, list, or read a running job; there is nothing to check and no waiting loop to run.
-- On that resumption, if `output_lines > 0` and the result matters, read it with `read_sandbox_command_output` using the delivered `output_file` and `start_line: 1`, at most 200 lines per call.
-- Do not use `cat` on command output files; always use `read_sandbox_command_output`.
+- On that resumption, if `output_lines > 0` and the result matters, read it with `read_command_output` using the delivered `output_file` and `start_line: 1`, at most 200 lines per call.
+- Do not use `cat` on command output files; always use `read_command_output`.
 """
 
 
@@ -38,6 +38,14 @@ LOCAL_COMMAND_INSTRUCTIONS = """## Local Command Execution
 - Use `read_command_output` with the returned path to inspect only the needed result lines. Do not rerun a scan merely to recover output that already exists.
 - Store generated reports, captures, extracted files, and task directories under `.xuanmu/outputs/<tool-or-task>/`. Never create `recon_*`, report, result, or temporary directories at the repository root.
 - Keep network scans staged and bounded so each command can finish within its timeout. If a scan times out, preserve the partial artifact, narrow the target or port set, and rerun only the incomplete stage.
+"""
+
+
+EXECUTION_ENVIRONMENT_INSTRUCTIONS = """## Execution Environment Selection
+
+- When sandbox command tools are available, use the sandbox for collection, scanning, browser work, and skill execution.
+- Use local command tools only when no sandbox command tools are available or the task explicitly requires backend-host state.
+- Command output paths belong to the environment that produced them; do not pass a sandbox path to a local command tool or a local path to a sandbox command tool.
 """
 
 
@@ -92,7 +100,7 @@ Project state is live shared memory for users and future agents. Keep it current
 
 - Read only needed state: structured Asset records before scope work; tasks/summaries before planning, resuming, delegation, handoff, or reporting. Asset records are authoritative scope; do not invent targets.
 - The durable model has two first-class records, Asset and Finding, plus a relationship graph built on them:
-  - Asset records are the graph nodes. `type` is one of `service`, `domain`, `network`, or `binary`; `service`/`domain`/`network` use the `host` field (port optional for `service`, identifying a specific host endpoint), `binary` uses `path`. Each asset is keyed by a normalized `(type, identifier)` identity. `origin` (`scope` for declared targets, `discovered` for newly found ones) is system-managed. Store only a short recon `banner` in the small `extra` object; never dump large output there.
+  - Asset records are the graph nodes. `type` is one of `service`, `domain`, `network`, `binary`, or `url`; `service`/`domain`/`network` use the `host` field (port optional for `service`, identifying a specific host endpoint), while `binary` and `url` use `path`. Each asset is keyed by a normalized `(type, identifier)` identity. `origin` (`scope` for declared targets, `discovered` for newly found ones) is system-managed. Store only a short recon `banner` in the small `extra` object; never dump large output there.
   - Finding records are weaknesses or proven issues. Set `asset_id` to the affected asset. When a finding substantiates a relationship or an attack step, set `edge_id` to the graph edge it backs. The finding's `description` and `impact` carry the proof; mark `status` `validated` only once it is actually confirmed.
   - Graph edges are directed relationships between two assets (`source_asset_id` -> `target_asset_id`). The `type` is either structural (`related`, `resolves_to`, `hosts`, `connects_to`, `trusts`) describing the target architecture, or offensive (`exploits`, `pivots_to`, `leads_to`) describing attack progression. Findings attached to an edge are its supporting proof.
   - Attack paths are ordered chains; each step traverses one relationship edge, in `sequence` order, to explain how access or impact progressed.
@@ -133,6 +141,8 @@ def build_instructions(
         runtime_guidance.append(SANDBOX_COMMAND_INSTRUCTIONS)
     if include_local_commands:
         runtime_guidance.append(LOCAL_COMMAND_INSTRUCTIONS)
+    if (include_sandbox_commands and has_sandbox_container) or include_local_commands:
+        runtime_guidance.append(EXECUTION_ENVIRONMENT_INSTRUCTIONS)
     if include_work_project_tools:
         runtime_guidance.append(WORK_PROJECT_INSTRUCTIONS)
     if include_blackboard_tools:

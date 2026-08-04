@@ -102,7 +102,7 @@ def _sandbox_async_job_prompt(notification: AgentNotificationSnapshot) -> str:
         "## Next Step\n\n"
         "The async command has reached a terminal state. "
         "If `output_lines` is greater than 0 and the result matters, read the output with "
-        "`read_sandbox_command_output` using `output_file` and `start_line: 1`. "
+        "`read_command_output` using `output_file` and `start_line: 1`. "
         "Then continue the task or report the final result.",
     )
     return "\n\n".join(sections)

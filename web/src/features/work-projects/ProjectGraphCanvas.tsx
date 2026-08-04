@@ -27,6 +27,7 @@ const ASSET_TYPE_COLOR: Record<WorkProjectAssetType, string> = {
   [WORK_PROJECT_ASSET_TYPE.DOMAIN]: "#42d6c5",
   [WORK_PROJECT_ASSET_TYPE.NETWORK]: "#a78bfa",
   [WORK_PROJECT_ASSET_TYPE.BINARY]: "#f7bd54",
+  [WORK_PROJECT_ASSET_TYPE.URL]: "#ef7da0",
 };
 
 const ASSET_TYPE_BORDER: Record<WorkProjectAssetType, string> = {
@@ -34,6 +35,7 @@ const ASSET_TYPE_BORDER: Record<WorkProjectAssetType, string> = {
   [WORK_PROJECT_ASSET_TYPE.DOMAIN]: "#d6fff9",
   [WORK_PROJECT_ASSET_TYPE.NETWORK]: "#eee7ff",
   [WORK_PROJECT_ASSET_TYPE.BINARY]: "#fff0c7",
+  [WORK_PROJECT_ASSET_TYPE.URL]: "#ffe0ea",
 };
 
 const EDGE_CATEGORY_COLOR: Record<WorkProjectGraphEdgeCategory, string> = {
@@ -512,7 +514,9 @@ function nodeRows(asset: WorkProjectAsset): TooltipRows {
   const items: DetailItem[] = [
     ["Type", WORK_PROJECT_ASSET_TYPE_LABEL[asset.type]],
     ["Origin", WORK_PROJECT_ASSET_ORIGIN_LABEL[asset.origin]],
-    asset.type === WORK_PROJECT_ASSET_TYPE.BINARY ? ["Path", asset.path] : ["Host", asset.host],
+    asset.type === WORK_PROJECT_ASSET_TYPE.BINARY || asset.type === WORK_PROJECT_ASSET_TYPE.URL
+      ? ["Path", asset.path]
+      : ["Host", asset.host],
     ["Port", asset.port ? String(asset.port) : undefined],
     ["Banner", asset.extra?.banner],
   ];

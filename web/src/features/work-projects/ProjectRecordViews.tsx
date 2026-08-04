@@ -294,7 +294,7 @@ function RecordDetails({ className, items }: { className?: string; items: Detail
 }
 
 function assetBaseMeta(asset: WorkProjectAsset): DetailItem[] {
-  if (asset.type === WORK_PROJECT_ASSET_TYPE.BINARY) {
+  if (asset.type === WORK_PROJECT_ASSET_TYPE.BINARY || asset.type === WORK_PROJECT_ASSET_TYPE.URL) {
     return [["Path", asset.path]];
   }
   return [

@@ -13,6 +13,11 @@ class LocalShellSkillTests(unittest.TestCase):
         self.assertIn("## Stage 1: Host Discovery", body)
         self.assertIn("-oA", body)
 
+    def test_passive_osint_skills_are_available_locally(self) -> None:
+        names = _local_skill_names()
+        self.assertIn("passive-domain-intel", names)
+        self.assertIn("web-archive-intel", names)
+
     def test_unknown_skill_resolves_under_custom_root(self) -> None:
         self.assertEqual(_local_skill_root("example"), Path(".agents/skills/example"))
 

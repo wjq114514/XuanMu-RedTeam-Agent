@@ -3512,7 +3512,7 @@ export interface components {
          * WorkProjectAssetType
          * @enum {string}
          */
-        WorkProjectAssetType: "service" | "domain" | "network" | "binary";
+        WorkProjectAssetType: "service" | "domain" | "network" | "binary" | "url";
         /** WorkProjectAttackPathSchema */
         WorkProjectAttackPathSchema: {
             /**

@@ -4,6 +4,13 @@ from agents import Tool
 
 from core.agent.constants import DEFAULT_AGENT_CODE
 from core.tools.local_shell import LOCAL_SHELL_TOOLS
+from core.tools.sandbox import (
+    cancel_sandbox_async_job,
+    execute_async_command,
+    execute_sync_command,
+    load_skill as load_sandbox_skill,
+    read_sandbox_command_output,
+)
 from core.tools.blackboard import (
     create_fact,
     create_hint,
@@ -27,6 +34,7 @@ from core.tools.work_project_records import (
     create_or_update_work_project_finding,
     create_or_update_work_project_graph_edge,
     delete_work_project_record,
+    import_osint_manifest,
     list_work_project_assets,
     list_work_project_findings,
     load_work_project_graph,
@@ -37,6 +45,7 @@ from core.tools.work_project_records import (
 class ToolMount:
     tool: Tool
     requires_sandbox_container: bool = False
+    requires_no_sandbox_container: bool = False
     requires_work_project: bool = False
 
 
@@ -88,12 +97,23 @@ WORK_PROJECT_RECORD_TOOLS = (
 )
 
 LOCAL_SHELL_TOOL_MOUNTS = tuple(
-    ToolMount(t) for t in LOCAL_SHELL_TOOLS
+    ToolMount(t, requires_no_sandbox_container=True) for t in LOCAL_SHELL_TOOLS
+)
+
+SANDBOX_TOOL_MOUNTS = tuple(
+    ToolMount(t, requires_sandbox_container=True) for t in (
+        execute_sync_command,
+        execute_async_command,
+        read_sandbox_command_output,
+        cancel_sandbox_async_job,
+        load_sandbox_skill,
+    )
 )
 
 
 SPECIALIST_TOOLS = (
     *LOCAL_SHELL_TOOL_MOUNTS,
+    *SANDBOX_TOOL_MOUNTS,
     *KNOWLEDGE_TOOLS,
     *WORK_PROJECT_TOOLS,
     *WORK_PROJECT_RECORD_TOOLS,
@@ -120,7 +140,13 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
     ),
     AgentSpec(code="cae", tools=SPECIALIST_TOOLS),
     AgentSpec(code="cce", tools=SPECIALIST_TOOLS),
-    AgentSpec(code="cie", tools=SPECIALIST_TOOLS),
+    AgentSpec(
+        code="cie",
+        tools=(
+            *SPECIALIST_TOOLS,
+            ToolMount(import_osint_manifest, requires_work_project=True),
+        ),
+    ),
     AgentSpec(code="cpe", tools=SPECIALIST_TOOLS),
     AgentSpec(code="cre", tools=SPECIALIST_TOOLS),
 )

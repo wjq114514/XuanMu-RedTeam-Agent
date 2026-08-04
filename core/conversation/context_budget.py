@@ -41,7 +41,10 @@ class _InputChunk:
 
 def build_context_run_config(agent_config: AgentConfig) -> RunConfig:
     """Build SDK run config that enforces context budget before every model call."""
-    return RunConfig(call_model_input_filter=ContextBudgetFilter(agent_config))
+    return RunConfig(
+        call_model_input_filter=ContextBudgetFilter(agent_config),
+        tool_not_found_behavior="return_error_to_model",
+    )
 
 
 @dataclass(frozen=True, slots=True)

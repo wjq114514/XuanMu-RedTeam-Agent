@@ -422,7 +422,7 @@ my-tool --help
 
 ### 内置 Skill 清单
 
-以下 Skill 位于 `sandbox/.agents/skills/`。其中 `nmap` 同时支持宿主机模式，其余仅在启用沙箱容器时生效：
+以下 Skill 位于 `sandbox/.agents/skills/`。其中 `nmap`、`passive-domain-intel` 和 `web-archive-intel` 同时支持宿主机模式，其余仅在启用沙箱容器时生效：
 
 | Skill | 用途 |
 |-------|------|
@@ -435,11 +435,13 @@ my-tool --help
 | `ghidra` | 二进制逆向分析 |
 | `openssl` | 证书分析、TLS 诊断 |
 | `dns-whois` | DNS 查询、WHOIS 信息收集 |
+| `passive-domain-intel` | 被动 DNS、RDAP、证书透明度和子域情报 |
+| `web-archive-intel` | Wayback 与 Common Crawl 历史 URL 情报 |
 | `observer-ward` | Web 指纹识别 |
 | `archive-file-triage` | 压缩包分类与解包 |
 | `sandbox-shell` | 沙箱环境基础 Shell 操作 |
 
-> 本地模式会加载 `.agents/skills/` 中的自定义 Skill，并额外加载项目内置的 `nmap` Skill。
+> 本地模式会加载 `.agents/skills/` 中的自定义 Skill，并额外加载项目内置的 `nmap`、`passive-domain-intel` 和 `web-archive-intel` Skill。
 
 ### Skills 与 Knowledges 的区别
 

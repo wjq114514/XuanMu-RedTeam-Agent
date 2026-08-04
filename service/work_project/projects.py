@@ -167,18 +167,20 @@ async def update_work_project_metadata(
     request: UpdateWorkProjectMetadataRequest,
 ) -> WorkProjectSchema | None:
     async with get_async_session() as session:
-        project = await session.get(WorkProject, id)
-        if project is None:
-            return None
-        project.name = request.name
-        project.description = request.description
-        project.type = request.type
-        project.updated_at = datetime.now()
-        session.add(project)
-        await _replace_project_owners(session, id, request.owner_user_ids)
-        await _replace_project_sandbox_containers(session, id, request.sandbox_container_ids)
-        await _upsert_project_assets(session, id, request.assets)
-        await session.commit()
+        async with session.begin():
+            project = (await session.exec(
+                select(WorkProject).where(WorkProject.id == id).with_for_update()
+            )).first()
+            if project is None:
+                return None
+            project.name = request.name
+            project.description = request.description
+            project.type = request.type
+            project.updated_at = datetime.now()
+            session.add(project)
+            await _replace_project_owners(session, id, request.owner_user_ids)
+            await _replace_project_sandbox_containers(session, id, request.sandbox_container_ids)
+            await _upsert_project_assets(session, id, request.assets)
         await session.refresh(project)
         schema = await _project_schema(session, project)
 

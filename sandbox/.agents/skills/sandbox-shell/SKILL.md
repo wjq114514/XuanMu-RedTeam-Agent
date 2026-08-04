@@ -14,7 +14,7 @@ Command tools return compact JSON metadata; raw output is captured to `output_fi
 - `execute_sync_command` returns `status`, `output_file`, `output_bytes`, `output_lines`, and optional `exit_code`.
 - `execute_async_command` returns only `status` and `run_id`; its terminal `status`, `exit_code`, and `output_file` are delivered later when the runtime resumes you.
 - Status values: `running`, `completed`, `failed`, `canceled`.
-- Read output with `read_sandbox_command_output` using `output_file` and `start_line: 1`, at most 200 lines per call. Do not use `cat`.
+- Read output with `read_command_output` using `output_file` and `start_line: 1`, at most 200 lines per call. Do not use `cat`.
 
 ## Choosing Execution
 
@@ -42,7 +42,7 @@ Dispatching `execute_async_command` ends the current turn immediately.
 
 ## Output Handling
 
-- When metadata has terminal `status` and `output_lines > 0`, read needed chunks with `read_sandbox_command_output`.
+- When metadata has terminal `status` and `output_lines > 0`, read needed chunks with `read_command_output`.
 - Continue with the next `start_line` only when the next chunk is needed.
 - Do not re-run a command just to inspect an existing `output_file`.
 - Use a new bounded command only when file-side filtering/counting is more efficient than reading chunks.

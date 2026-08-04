@@ -10,6 +10,11 @@ from agents import TResponseInputItem
 from core import extract_message_text as _extract_message_text, tool_call_id as _tool_call_id
 
 
+_LEGACY_TOOL_NAMES = {
+    "read_sandbox_command_output": "read_command_output",
+}
+
+
 class ModelInputAdapter:
     """Normalize SDK history into provider-safe item order."""
 
@@ -76,6 +81,7 @@ class ToolTransactionNormalizer:
         return self._normalized
 
     def _handle_call(self, entry: TResponseInputItem, item: dict[str, Any]) -> None:
+        entry, item = _canonicalize_tool_name(entry, item)
         self._flush_if_complete()
         if not self._transaction.add_call(entry, _tool_call_id(item)):
             self._discard_incomplete_transaction()
@@ -119,6 +125,17 @@ def _dict_item(entry: Any) -> dict[str, Any] | None:
         return None
     dumped = dump(mode="json", exclude_none=True)
     return dumped if isinstance(dumped, dict) else None
+
+
+def _canonicalize_tool_name(
+    entry: TResponseInputItem,
+    item: dict[str, Any],
+) -> tuple[TResponseInputItem, dict[str, Any]]:
+    canonical = _LEGACY_TOOL_NAMES.get(str(item.get("name") or ""))
+    if canonical is None:
+        return entry, item
+    normalized = {**item, "name": canonical}
+    return normalized, normalized
 
 
 def _is_empty_assistant_message(item: dict[str, Any]) -> bool:

@@ -7,6 +7,8 @@
 #   ./xuanmu.sh stop --with-db  停止后端和系统 PG
 #   ./xuanmu.sh restart  重启
 #   ./xuanmu.sh status   查看状态
+#   ./xuanmu.sh db-setup 初始化/校验系统 PostgreSQL
+#   ./xuanmu.sh prepare  安装依赖并构建前端
 #   ./xuanmu.sh gen-api  重新生成前端 API 契约 (openapi.json -> schema.ts)
 # 可选环境变量:
 #   XUANMU_PG_SERVICE=postgresql-16  多版本环境显式指定 systemd 单元
@@ -18,7 +20,8 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 VENV_DIR="$PROJECT_DIR/.venv"
 CONFIG_FILE="$PROJECT_DIR/.xuanmu/config.json"
-LOG_FILE="/tmp/xuanmu-root.log"
+PID_FILE="$PROJECT_DIR/.xuanmu/app.pid"
+LOG_FILE="$PROJECT_DIR/.xuanmu/backend.log"
 PG_BINDIR=""
 PG_PSQL=""
 PG_ISREADY=""
@@ -102,6 +105,7 @@ read_db_config() {
 
     if ! OUT=$("$PY" - "$CONFIG_FILE" <<'PYEOF' 2>&1
 import json
+import re
 import shlex
 import sys
 
@@ -128,6 +132,9 @@ if values["database"] in {"postgres", "template0", "template1"}:
     raise ValueError("database.database 不能使用 PostgreSQL 维护数据库")
 if values["username"] == "postgres":
     raise ValueError("database.username 不能使用 PostgreSQL 管理员账号 postgres")
+for key in ("database", "username"):
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]{0,62}", values[key]):
+        raise ValueError(f"database.{key} 只能包含字母、数字、点、下划线和连字符")
 
 system = root.get("system", {})
 app_port = system.get("listen_port", 8000)
@@ -245,7 +252,8 @@ init_system_pg_if_needed() {
             fi
             [ -x "$PG_BINDIR/initdb" ] || { err "未找到 initdb: $PG_BINDIR/initdb"; return 1; }
             info "检测到 Arch Linux PostgreSQL 尚未初始化: $DATA_DIR"
-            as_postgres "$PG_BINDIR/initdb" --locale=C.UTF-8 --encoding=UTF8 -D "$DATA_DIR" || return 1
+            as_postgres "$PG_BINDIR/initdb" --locale=C.UTF-8 --encoding=UTF8 \
+                --auth-local=peer --auth-host=scram-sha-256 -D "$DATA_DIR" || return 1
             ok "PostgreSQL 系统集群初始化完成"
             ;;
         rhel)
@@ -481,6 +489,52 @@ verify_system_pg_endpoint() {
     return 0
 }
 
+ensure_app_hba_rule() {
+    local HBA_FILE PY CHANGED
+    HBA_FILE=$(as_postgres "$PG_PSQL" -X -v ON_ERROR_STOP=1 -p "$DB_PORT" \
+        -d postgres -Atc "SHOW hba_file") || return 1
+    PY=$(command -v python3 2>/dev/null || true)
+    [ -n "$PY" ] || { err "未找到 python3，无法配置应用数据库认证"; return 1; }
+
+    CHANGED=$(as_postgres env XUANMU_PROJECT_DIR="$PROJECT_DIR" \
+        "$PY" - "$HBA_FILE" "$DB_NAME" "$DB_USER" <<'PYEOF'
+import os
+import stat
+import sys
+
+path, database, user = sys.argv[1:]
+project_id = __import__("hashlib").sha256(os.environ["XUANMU_PROJECT_DIR"].encode()).hexdigest()[:12]
+marker_prefix = f"# xuanmu managed:{project_id}"
+marker = f"{marker_prefix} {database}/{user}"
+rules = (
+    f'host "{database}" "{user}" 127.0.0.1/32 scram-sha-256 {marker}\n'
+    f'host "{database}" "{user}" ::1/128 scram-sha-256 {marker}\n'
+)
+with open(path, encoding="utf-8") as fh:
+    original = fh.read()
+preserved = "".join(line for line in original.splitlines(keepends=True) if marker_prefix not in line)
+updated = rules + preserved
+if updated == original:
+    print("0")
+    raise SystemExit
+
+temporary = f"{path}.xuanmu.{os.getpid()}"
+mode = stat.S_IMODE(os.stat(path).st_mode)
+with open(temporary, "w", encoding="utf-8") as fh:
+    fh.write(updated)
+os.chmod(temporary, mode)
+os.replace(temporary, path)
+print("1")
+PYEOF
+    ) || return 1
+
+    if [ "$CHANGED" = "1" ]; then
+        as_postgres "$PG_PSQL" -X -v ON_ERROR_STOP=1 -p "$DB_PORT" \
+            -d postgres -c "SELECT pg_reload_conf()" >/dev/null || return 1
+        ok "应用数据库 SCRAM 认证规则已更新"
+    fi
+}
+
 verify_systemd_service_owner() {
     local UNIT="$1" POSTMASTER_PID MAIN_PID
     if ! POSTMASTER_PID=$(as_postgres "$PG_PSQL" -X -v ON_ERROR_STOP=1 -p "$DB_PORT" \
@@ -506,7 +560,9 @@ ensure_pg_user() {
         PY=$(command -v python3 2>/dev/null || true)
     fi
 
-    if ! "$PY" - "$CONFIG_FILE" <<'PYEOF' | as_postgres "$PG_PSQL" -X -v ON_ERROR_STOP=1 -p "$DB_PORT" -d postgres >/dev/null
+    if ! "$PY" - "$CONFIG_FILE" <<'PYEOF' | as_postgres env \
+        "PGOPTIONS=-c password_encryption=scram-sha-256" \
+        "$PG_PSQL" -X -v ON_ERROR_STOP=1 -p "$DB_PORT" -d postgres >/dev/null
 import json
 import sys
 
@@ -523,7 +579,6 @@ user = db["username"]
 password = db["password"]
 database = db["database"]
 user_ident = ident(user)
-db_ident = ident(database)
 delimiter_number = 0
 delimiter = "$xuanmu_0$"
 while delimiter in user or delimiter in password or delimiter in database:
@@ -532,15 +587,30 @@ while delimiter in user or delimiter in password or delimiter in database:
 
 print(f"DO {delimiter}")
 print("BEGIN")
+print(f"  IF EXISTS (SELECT FROM pg_roles WHERE rolname = {literal(user)} AND rolsuper) THEN")
+print("    RAISE EXCEPTION 'refusing to reuse an existing superuser role';")
+print("  END IF;")
+print(f"  IF EXISTS (SELECT FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = {literal(database)} AND r.rolname <> {literal(user)}) THEN")
+print("    RAISE EXCEPTION 'refusing to take ownership of an existing database';")
+print("  END IF;")
 print(f"  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = {literal(user)}) THEN")
 print(f"    CREATE ROLE {user_ident} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD {literal(password)};")
+print(f"    COMMENT ON ROLE {user_ident} IS 'xuanmu-managed';")
 print("  ELSE")
+print(f"    IF COALESCE((SELECT shobj_description(oid, 'pg_authid') FROM pg_roles WHERE rolname = {literal(user)}), '') <> 'xuanmu-managed' THEN")
+if user == "root" and database == "z3r0":
+    print(f"      IF NOT EXISTS (SELECT FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = {literal(database)} AND r.rolname = {literal(user)}) THEN")
+    print("        RAISE EXCEPTION 'refusing to reuse an unmanaged role';")
+    print("      END IF;")
+    print(f"      COMMENT ON ROLE {user_ident} IS 'xuanmu-managed';")
+else:
+    print("      RAISE EXCEPTION 'refusing to reuse an unmanaged role';")
+print("    END IF;")
 print(f"    ALTER ROLE {user_ident} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD {literal(password)};")
 print("  END IF;")
 print("END")
 print(f"{delimiter};")
 print(f"SELECT format('CREATE DATABASE %I OWNER %I', {literal(database)}, {literal(user)}) WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = {literal(database)})\\gexec")
-print(f"ALTER DATABASE {db_ident} OWNER TO {user_ident};")
 PYEOF
     then
         err "无法使用 postgres 系统账号配置数据库，请检查本地认证和数据库端口"
@@ -586,6 +656,7 @@ start_pg() {
     fi
     verify_system_pg_endpoint || exit 1
     ensure_pg_user
+    ensure_app_hba_rule || exit 1
     validate_app_db
 }
 
@@ -616,10 +687,14 @@ build_frontend() {
         info "未检测到 dist，需要首次构建"
     else
         local LATEST_SRC
-        LATEST_SRC=$(find "$PROJECT_DIR/web/src" "$PROJECT_DIR/web" -maxdepth 1 \
-            \( -name '*.ts' -o -name '*.tsx' -o -name '*.vue' -o -name '*.html' \
-               -o -name '*.css' -o -name 'package.json' -o -name 'vite.config.*' \) \
-            -newer "$DIST" -print 2>/dev/null | head -n 1)
+        LATEST_SRC=$(find "$PROJECT_DIR/web/src" -type f \
+            \( -name '*.ts' -o -name '*.tsx' -o -name '*.vue' -o -name '*.html' -o -name '*.css' \) \
+            -newer "$DIST" -print -quit 2>/dev/null)
+        if [ -z "$LATEST_SRC" ]; then
+            LATEST_SRC=$(find "$PROJECT_DIR/web" -maxdepth 1 -type f \
+                \( -name 'package.json' -o -name 'package-lock.json' -o -name 'vite.config.*' \) \
+                -newer "$DIST" -print -quit 2>/dev/null)
+        fi
         if [ -n "$LATEST_SRC" ]; then
             NEED_BUILD=1
             info "检测到源码变动: $(basename "$LATEST_SRC")"
@@ -640,45 +715,76 @@ build_frontend() {
     fi
 }
 
-# ---------- 启动后端 (root) ----------
+process_start_time() {
+    local PID="$1"
+    local -a STAT_FIELDS=()
+    [ -r "/proc/$PID/stat" ] || return 1
+    read -ra STAT_FIELDS < "/proc/$PID/stat"
+    [ "${#STAT_FIELDS[@]}" -ge 22 ] || return 1
+    printf '%s\n' "${STAT_FIELDS[21]}"
+}
+
+discover_backend_pid() {
+    local EXPECTED_CMD="$VENV_DIR/bin/python $PROJECT_DIR/main.py"
+    local -a PIDS=()
+    mapfile -t PIDS < <(pgrep -f -x -- "$EXPECTED_CMD" 2>/dev/null || true)
+    [ "${#PIDS[@]}" -eq 1 ] || return 1
+    printf '%s\n' "${PIDS[0]}"
+}
+
+backend_pid() {
+    local PID="" START="" CURRENT_START
+    if [ -f "$PID_FILE" ]; then
+        read -r PID START < "$PID_FILE" || true
+    fi
+    CURRENT_START=$(process_start_time "$PID" 2>/dev/null || true)
+    if [[ "$PID" =~ ^[0-9]+$ ]] && [ -n "$START" ] && [ "$CURRENT_START" = "$START" ]; then
+        printf '%s\n' "$PID"
+        return 0
+    fi
+
+    PID=$(discover_backend_pid || true)
+    [ -n "$PID" ] || return 1
+    START=$(process_start_time "$PID" 2>/dev/null || true)
+    [ -n "$START" ] || return 1
+    printf '%s %s\n' "$PID" "$START" > "$PID_FILE"
+    printf '%s\n' "$PID"
+}
+
 start_backend() {
-    echo "[4/4] 启动 XuanMu 后端服务 (root)..."
+    echo "[4/4] 启动 XuanMu 后端服务 (root, 后台)..."
     local PID
-    PID=$(pgrep -f "python main.py" | head -n 1 || true)
+    PID=$(backend_pid || true)
     if [ -n "$PID" ]; then
         info "后端已在运行 (PID $PID)，跳过"
         return
     fi
 
-    as_root bash -c "cd '$PROJECT_DIR' && setsid nohup .venv/bin/python main.py > '$LOG_FILE' 2>&1 < /dev/null & echo \$!"
-    sleep 4
+    mkdir -p "$PROJECT_DIR/.xuanmu"
+    : > "$PID_FILE"
+    as_root bash -c '
+        cd "$1"
+        setsid nohup "$2" "$3" >> "$4" 2>&1 < /dev/null &
+        pid=$!
+        read -ra stat_fields < "/proc/$pid/stat"
+        printf "%s %s\n" "$pid" "${stat_fields[21]}" > "$5"
+    ' _ "$PROJECT_DIR" "$VENV_DIR/bin/python" "$PROJECT_DIR/main.py" "$LOG_FILE" "$PID_FILE"
 
-    if pgrep -f "python main.py" >/dev/null; then
-        ok "后端启动成功 (root, PID $(pgrep -f 'python main.py' | head -n 1))"
-    else
-        err "后端启动失败，查看 $LOG_FILE"
+    sleep 2
+    PID=$(backend_pid || true)
+    if [ -z "$PID" ]; then
+        rm -f "$PID_FILE"
+        err "后端启动失败，请查看 $LOG_FILE"
         exit 1
     fi
+    ok "后端启动成功 (root, PID $PID)"
 }
 
 # ---------- 停止 ----------
 stop_all() {
     local WITH_DB="${1:-}"
     echo "停止 XuanMu 服务..."
-    local BACKEND_PIDS
-    BACKEND_PIDS=$(pgrep -f "python main.py" || true)
-    if [ -n "$BACKEND_PIDS" ]; then
-        echo "  ⏳ 停止后端进程 (root)..."
-        as_root pkill -f "python main.py" 2>/dev/null || true
-        sleep 1
-        if pgrep -f "python main.py" >/dev/null; then
-            info "后端进程仍在，强制结束..."
-            as_root pkill -9 -f "python main.py" 2>/dev/null || true
-        fi
-        ok "后端已停止"
-    else
-        info "后端未在运行"
-    fi
+    "$PROJECT_DIR/stop.sh"
 
     if [ "$WITH_DB" = "--with-db" ]; then
         echo "  ⏳ 停止系统 PostgreSQL..."
@@ -725,7 +831,7 @@ show_status() {
     local BPID
     read_db_config
     detect_pg_tools
-    BPID=$(pgrep -f "python main.py" | head -n 1 || true)
+    BPID=$(backend_pid || true)
     if [ -n "$BPID" ]; then
         local BUSER
         BUSER=$(ps -o user= -p "$BPID" 2>/dev/null)
@@ -792,9 +898,8 @@ case "${1:-start}" in
         build_frontend
         start_backend
         echo ""
-        echo "  🌐 API:     http://127.0.0.1:$APP_PORT"
-        echo "  📖 Docs:    http://127.0.0.1:$APP_PORT/docs"
-        echo "  👤 管理员账号: admin@admin.com（密码见 .xuanmu/config.json）"
+        echo "  API:  http://127.0.0.1:$APP_PORT"
+        echo "  Docs: http://127.0.0.1:$APP_PORT/docs"
         echo "  日志: $LOG_FILE"
         ;;
     stop)
@@ -806,32 +911,27 @@ case "${1:-start}" in
         ;;
     restart)
         echo "===== 重启 XuanMu 后端 ====="
-        # 只重启后端，保留 PostgreSQL（避免竞态）
-        BPID=$(pgrep -f "python main.py" | head -n 1 || true)
-        if [ -n "$BPID" ]; then
-            echo "  ⏳ 停止后端 (PID $BPID)..."
-            as_root pkill -f "python main.py" 2>/dev/null || true
-            sleep 1
-            as_root pkill -9 -f "python main.py" 2>/dev/null || true
-            sleep 1
-        fi
+        "$PROJECT_DIR/stop.sh"
         start_pg
         load_venv
         build_frontend
         start_backend
-        echo ""
-        echo "  🌐 API:     http://127.0.0.1:$APP_PORT"
-        echo "  📖 Docs:    http://127.0.0.1:$APP_PORT/docs"
-        echo "  日志: $LOG_FILE"
         ;;
     status)
         show_status
+        ;;
+    db-setup)
+        start_pg
+        ;;
+    prepare)
+        load_venv
+        build_frontend
         ;;
     gen-api)
         gen_api
         ;;
     *)
-        echo "用法: $0 {start|stop [--with-db]|restart|status|gen-api}"
+        echo "用法: $0 {start|stop [--with-db]|restart|status|db-setup|prepare|gen-api}"
         exit 1
         ;;
 esac

@@ -1,337 +1,311 @@
 #!/usr/bin/env bash
-# ============================================================
-# XuanMu RedTeam Agent - 完整安装配置脚本
-# 从零开始：安装依赖 → 配置数据库 → 构建前端 → 启动服务
-# 适用环境：Kali Linux / Debian
-# ============================================================
-set -e
+# XuanMu RedTeam Agent - cross-distribution installation script
+set -eo pipefail
 
-cd "$(dirname "$0")"
-PROJECT_DIR="$(pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$PROJECT_DIR"
 
-# ---------- 颜色 ----------
 RED=$'\033[0;31m'
 GREEN=$'\033[0;32m'
 YELLOW=$'\033[1;33m'
 BLUE=$'\033[0;34m'
 NC=$'\033[0m'
 
-log()  { echo -e "${GREEN}[✓]${NC} $1"; }
+log()  { echo -e "${GREEN}[OK]${NC} $1"; }
 warn() { echo -e "${YELLOW}[!]${NC} $1"; }
-err()  { echo -e "${RED}[✗]${NC} $1"; exit 1; }
+err()  { echo -e "${RED}[X]${NC} $1"; exit 1; }
 info() { echo -e "${BLUE}[~]${NC} $1"; }
 
-# ============================================================
-echo "========================================"
-echo "  XuanMu RedTeam Agent v0.2.1"
-echo "  安装配置脚本"
-echo "========================================"
-echo ""
+DISTRO_ID="unknown"
+DISTRO_FAMILY="unknown"
+DISTRO_NAME="Unknown Linux"
+PACKAGES=()
+PYTHON_BIN=""
 
-# ---------- 1. 检查系统 ----------
-info "检查系统环境..."
-OS="$(uname -s)"
-if [ "$OS" != "Linux" ]; then
-    err "仅支持 Linux (推荐 Kali/Debian)"
-fi
-log "系统: $(lsb_release -ds 2>/dev/null || cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '\"')"
-
-# ---------- 2. 安装系统依赖 ----------
-info "安装系统依赖..."
-PKGS=""
-command -v psql >/dev/null 2>&1 || PKGS="$PKGS postgresql postgresql-client"
-command -v node >/dev/null 2>&1 || PKGS="$PKGS nodejs npm"
-if [ "$(id -u)" -eq 0 ]; then
-    if [ -n "$PKGS" ]; then
-        apt update -qq && apt install -y -qq $PKGS 2>&1 | tail -2
-        log "系统依赖已安装"
+as_root() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo -- "$@"
     else
-        log "系统依赖已就绪"
+        err "安装系统依赖需要 root 权限，但系统未安装 sudo"
     fi
-else
-    if [ -n "$PKGS" ]; then
-        warn "需要 root 权限安装: $PKGS"
-        warn "请手动执行: sudo apt update && sudo apt install -y $PKGS"
-    else
-        log "系统依赖已就绪"
-    fi
-fi
+}
 
-# ---------- 3. 配置 PostgreSQL ----------
-# 生成安全凭据（可通过环境变量覆盖，避免硬编码密码进仓库）
-DB_PASSWORD="${DB_PASSWORD:-$(openssl rand -hex 16)}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(openssl rand -hex 8)}"
-info "配置 PostgreSQL..."
-if pg_isready -q 2>/dev/null; then
-    log "PostgreSQL 已在运行"
-else
-    if command -v pg_ctlcluster >/dev/null 2>&1; then
-        # 自动探测已安装的 PG 集群版本并启动
-        STARTED=0
-        for ver in $(ls /etc/postgresql/ 2>/dev/null | sort -Vr); do
-            if sudo pg_ctlcluster "$ver" main start 2>/dev/null; then
-                STARTED=1
-                log "PostgreSQL $ver 已启动"
-                break
-            fi
-        done
-        if [ "$STARTED" -eq 0 ]; then
-            warn "启动 PostgreSQL 失败，请手动启动"
+detect_distro() {
+    local ID="" ID_LIKE="" PRETTY_NAME=""
+    [ "$(uname -s)" = "Linux" ] || err "当前安装脚本仅支持 Linux"
+    [ -r /etc/os-release ] || err "缺少 /etc/os-release，无法识别发行版"
+    . /etc/os-release
+
+    DISTRO_ID="${ID:-unknown}"
+    DISTRO_NAME="${PRETTY_NAME:-$DISTRO_ID}"
+    case "$DISTRO_ID ${ID_LIKE:-}" in
+        *debian*) DISTRO_FAMILY="debian" ;;
+        *fedora*|*rhel*|*centos*) DISTRO_FAMILY="rhel" ;;
+        *arch*) DISTRO_FAMILY="arch" ;;
+        *suse*) DISTRO_FAMILY="suse" ;;
+        *) err "暂不支持该 Linux 发行版: $DISTRO_NAME" ;;
+    esac
+}
+
+add_packages() {
+    PACKAGES+=("$@")
+}
+
+find_supported_python() {
+    local CANDIDATE
+    for CANDIDATE in python3.14 python3.13 python3.12 python3; do
+        command -v "$CANDIDATE" >/dev/null 2>&1 || continue
+        if "$CANDIDATE" -c 'import sys; raise SystemExit(sys.version_info < (3, 12))' >/dev/null 2>&1; then
+            PYTHON_BIN=$(command -v "$CANDIDATE")
+            return 0
         fi
-    else
-        sudo service postgresql start 2>/dev/null || {
-            warn "启动 PostgreSQL 失败，请手动启动"
-        }
+    done
+    return 1
+}
+
+has_postgres_server() {
+    local DIR
+    if command -v pg_config >/dev/null 2>&1; then
+        DIR=$(pg_config --bindir 2>/dev/null || true)
+        [ -n "$DIR" ] && [ -x "$DIR/postgres" ] && return 0
     fi
-    sleep 2
-fi
-
-# 创建数据库和用户（幂等）
-PG_VERSION=$(pg_config --version 2>/dev/null | grep -oP '\d+' | head -1 || echo "16")
-sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='root'" 2>/dev/null | grep -q 1 || {
-    sudo -u postgres psql -c "CREATE USER root WITH PASSWORD '$DB_PASSWORD';" >/dev/null 2>&1
-    log "数据库用户 root 已创建"
+    command -v postgres >/dev/null 2>&1 && return 0
+    for DIR in /usr/lib/postgresql/*/bin /usr/pgsql-*/bin \
+        /usr/lib/postgresql*/bin /usr/local/pgsql/bin; do
+        [ -x "$DIR/postgres" ] && return 0
+    done
+    return 1
 }
-sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='z3r0'" 2>/dev/null | grep -q 1 || {
-    sudo -u postgres psql -c "CREATE DATABASE z3r0 OWNER root;" >/dev/null 2>&1
-    log "数据库 z3r0 已创建"
-}
-log "PostgreSQL 配置完成"
 
-# ---------- 4. 创建配置文件 ----------
-info "创建配置文件..."
-CONFIG_FILE="$PROJECT_DIR/.xuanmu/config.json"
-mkdir -p "$PROJECT_DIR/.xuanmu"
-if [ ! -f "$CONFIG_FILE" ]; then
-    if [ -f "$PROJECT_DIR/.xuanmu/config.json.example" ]; then
-        cp "$PROJECT_DIR/.xuanmu/config.json.example" "$CONFIG_FILE"
-        # 生成随机 encrypt_key
-        ENCRYPT_KEY=$(openssl rand -base64 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_urlsafe(32))")
-        # 使用 Python 更新配置
-        python3 <<-PYEOF
+collect_packages() {
+    local NEED_PYTHON=0 NEED_POSTGRES=0 NEED_NODE=0 NEED_OPENSSL=0 NEED_UTIL=0
+    local PYTHON_VENV_PACKAGE=""
+    if find_supported_python; then
+        if ! "$PYTHON_BIN" -c "import venv, ensurepip" >/dev/null 2>&1; then
+            NEED_PYTHON=1
+            PYTHON_VENV_PACKAGE="$(basename "$PYTHON_BIN")-venv"
+        fi
+    elif ! command -v python3 >/dev/null 2>&1; then
+        NEED_PYTHON=1
+    fi
+    command -v psql >/dev/null 2>&1 || NEED_POSTGRES=1
+    command -v pg_isready >/dev/null 2>&1 || NEED_POSTGRES=1
+    has_postgres_server || NEED_POSTGRES=1
+    command -v node >/dev/null 2>&1 || NEED_NODE=1
+    command -v npm >/dev/null 2>&1 || NEED_NODE=1
+    command -v openssl >/dev/null 2>&1 || NEED_OPENSSL=1
+    command -v setsid >/dev/null 2>&1 || NEED_UTIL=1
+
+    case "$DISTRO_FAMILY" in
+        debian)
+            [ "$NEED_PYTHON" -eq 0 ] || add_packages python3 "${PYTHON_VENV_PACKAGE:-python3-venv}" python3-pip
+            [ "$NEED_POSTGRES" -eq 0 ] || add_packages postgresql postgresql-client
+            [ "$NEED_NODE" -eq 0 ] || add_packages nodejs npm
+            [ "$NEED_OPENSSL" -eq 0 ] || add_packages openssl
+            [ "$NEED_UTIL" -eq 0 ] || add_packages util-linux
+            ;;
+        rhel)
+            [ "$NEED_PYTHON" -eq 0 ] || add_packages python3 python3-pip
+            [ "$NEED_POSTGRES" -eq 0 ] || add_packages postgresql-server postgresql
+            [ "$NEED_NODE" -eq 0 ] || add_packages nodejs npm
+            [ "$NEED_OPENSSL" -eq 0 ] || add_packages openssl
+            [ "$NEED_UTIL" -eq 0 ] || add_packages util-linux
+            ;;
+        arch)
+            [ "$NEED_PYTHON" -eq 0 ] || add_packages python python-pip
+            [ "$NEED_POSTGRES" -eq 0 ] || add_packages postgresql
+            [ "$NEED_NODE" -eq 0 ] || add_packages nodejs npm
+            [ "$NEED_OPENSSL" -eq 0 ] || add_packages openssl
+            [ "$NEED_UTIL" -eq 0 ] || add_packages util-linux
+            ;;
+        suse)
+            [ "$NEED_PYTHON" -eq 0 ] || add_packages python3 python3-pip python3-virtualenv
+            [ "$NEED_POSTGRES" -eq 0 ] || add_packages postgresql-server postgresql
+            [ "$NEED_NODE" -eq 0 ] || add_packages nodejs npm
+            [ "$NEED_OPENSSL" -eq 0 ] || add_packages openssl
+            [ "$NEED_UTIL" -eq 0 ] || add_packages util-linux
+            ;;
+    esac
+}
+
+install_packages() {
+    if [ "${#PACKAGES[@]}" -eq 0 ]; then
+        log "系统依赖已就绪"
+        return
+    fi
+
+    info "安装系统依赖: ${PACKAGES[*]}"
+    case "$DISTRO_FAMILY" in
+        debian)
+            as_root apt-get update
+            as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y "${PACKAGES[@]}"
+            ;;
+        rhel) as_root dnf install -y "${PACKAGES[@]}" ;;
+        arch) as_root pacman -S --needed --noconfirm "${PACKAGES[@]}" ;;
+        suse) as_root zypper --non-interactive install "${PACKAGES[@]}" ;;
+    esac
+    log "系统依赖安装完成"
+}
+
+verify_runtime_versions() {
+    command -v node >/dev/null 2>&1 || err "未找到 node"
+    command -v npm >/dev/null 2>&1 || err "未找到 npm"
+    command -v setsid >/dev/null 2>&1 || err "未找到 setsid (util-linux)"
+    find_supported_python || err "需要 Python 3.12+；当前发行版仓库版本过旧时请先安装新版 Python"
+    "$PYTHON_BIN" -c "import venv, ensurepip" >/dev/null 2>&1 \
+        || err "$PYTHON_BIN 缺少 venv/ensurepip 支持"
+
+    node - <<'JS' || err "需要 Node.js 20.19+ 或 22.12+"
+const [major, minor] = process.versions.node.split('.').map(Number)
+const supported = (major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major > 22
+process.exit(supported ? 0 : 1)
+JS
+    log "运行时版本: $($PYTHON_BIN --version), Node.js $(node --version)"
+}
+
+random_hex() {
+    local BYTES="$1"
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -hex "$BYTES"
+    else
+        "$PYTHON_BIN" -c "import secrets; print(secrets.token_hex($BYTES))"
+    fi
+}
+
+create_config() {
+    local CONFIG_DIR="$PROJECT_DIR/.xuanmu"
+    local CONFIG_FILE="$CONFIG_DIR/config.json"
+    local EXAMPLE_FILE="$CONFIG_DIR/config.json.example"
+    local OLD_UMASK DB_VALUE ADMIN_VALUE ENCRYPT_KEY TEMP_CONFIG
+
+    mkdir -p "$CONFIG_DIR"
+    chmod 700 "$CONFIG_DIR"
+    if [ -f "$CONFIG_FILE" ]; then
+        chmod 600 "$CONFIG_FILE"
+        log "配置文件已存在，保留现有配置"
+        return
+    fi
+    [ -f "$EXAMPLE_FILE" ] || err "未找到 $EXAMPLE_FILE"
+
+    DB_VALUE="${DB_PASSWORD:-$(random_hex 16)}"
+    ADMIN_VALUE="${ADMIN_PASSWORD:-$(random_hex 16)}"
+    ENCRYPT_KEY=$(random_hex 32)
+    TEMP_CONFIG="$CONFIG_DIR/.config.json.tmp.$$"
+    OLD_UMASK=$(umask)
+    umask 077
+    trap 'rm -f "$TEMP_CONFIG"' EXIT
+    EXAMPLE_FILE="$EXAMPLE_FILE" CONFIG_FILE="$TEMP_CONFIG" \
+        DB_VALUE="$DB_VALUE" ADMIN_VALUE="$ADMIN_VALUE" \
+        ADMIN_EMAIL_VALUE="${ADMIN_EMAIL:-admin@admin.com}" ENCRYPT_KEY="$ENCRYPT_KEY" \
+        "$PYTHON_BIN" <<'PY'
 import json
-with open("$CONFIG_FILE", "r") as f:
-    cfg = json.load(f)
-cfg["system"]["encrypt_key"] = "$ENCRYPT_KEY"
+import os
+import re
+
+path = os.environ["CONFIG_FILE"]
+with open(os.environ["EXAMPLE_FILE"], encoding="utf-8") as fh:
+    cfg = json.load(fh)
+
+cfg["system"]["encrypt_key"] = os.environ["ENCRYPT_KEY"]
 cfg["system"]["bootstrap_admin"]["enabled"] = True
-cfg["system"]["bootstrap_admin"]["password"] = "$ADMIN_PASSWORD"
-cfg["system"]["bootstrap_admin"]["email"] = "${ADMIN_EMAIL:-admin@admin.com}"
-cfg["database"]["host"] = "127.0.0.1"
-cfg["database"]["port"] = 5432
-cfg["database"]["database"] = "z3r0"
-cfg["database"]["username"] = "root"
-cfg["database"]["password"] = "$DB_PASSWORD"
-# 清空示例 API Key，等待用户填写
+cfg["system"]["bootstrap_admin"]["password"] = os.environ["ADMIN_VALUE"]
+cfg["system"]["bootstrap_admin"]["email"] = os.environ["ADMIN_EMAIL_VALUE"]
+cfg["database"].update({
+    "host": "127.0.0.1",
+    "port": 5432,
+    "database": "z3r0",
+    "username": "xuanmu",
+    "password": os.environ["DB_VALUE"],
+})
+for key in ("database", "username"):
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]{0,62}", cfg["database"][key]):
+        raise ValueError(f"database.{key} contains unsupported characters")
 for agent in cfg.get("agents", {}).values():
     agent["api_key"] = ""
-with open("$CONFIG_FILE", "w") as f:
-    json.dump(cfg, f, indent=4, ensure_ascii=False)
-print("encrypt_key: $ENCRYPT_KEY")
-PYEOF
-        log "配置文件已创建: $CONFIG_FILE"
-        warn "数据库与管理员密码已随机生成，见 $CONFIG_FILE（可用环境变量 DB_PASSWORD / ADMIN_PASSWORD 覆盖）"
-        warn "请编辑 $CONFIG_FILE 填入 LLM API Key 和模型名"
-        warn "需要修改 agents 下每个角色的 api_key / base_url / model 字段"
+
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(cfg, fh, indent=4, ensure_ascii=False)
+    fh.write("\n")
+PY
+    mv "$TEMP_CONFIG" "$CONFIG_FILE"
+    trap - EXIT
+    umask "$OLD_UMASK"
+    log "配置文件已创建: $CONFIG_FILE"
+    warn "数据库和管理员密码已随机生成，请妥善保管 $CONFIG_FILE"
+}
+
+setup_database() {
+    info "初始化系统 PostgreSQL 和应用数据库..."
+    bash "$PROJECT_DIR/xuanmu.sh" db-setup
+    log "PostgreSQL 配置完成"
+}
+
+setup_python() {
+    local VENV_DIR="$PROJECT_DIR/.venv"
+    local INDEX_URL="${PIP_INDEX_URL:-https://pypi.org/simple}"
+    info "配置 Python 虚拟环境..."
+    if [ -x "$VENV_DIR/bin/python" ]; then
+        "$VENV_DIR/bin/python" -c 'import sys; raise SystemExit(sys.version_info < (3, 12))' \
+            || err "现有虚拟环境低于 Python 3.12，请移走 $VENV_DIR 后重试"
     else
-        err "未找到 config.json.example"
+        [ ! -e "$VENV_DIR" ] || err "$VENV_DIR 已存在但不完整，请检查或移走后重试"
+        "$PYTHON_BIN" -m venv "$VENV_DIR" || err "创建 Python 虚拟环境失败"
     fi
-else
-    log "配置文件已存在，跳过"
-fi
+    "$VENV_DIR/bin/python" -m pip install --index-url "$INDEX_URL" --upgrade pip
+    "$VENV_DIR/bin/python" -m pip install --index-url "$INDEX_URL" -r "$PROJECT_DIR/requirements.txt"
+    log "Python 依赖安装完成"
+}
 
-# ---------- 5. 创建 Python 虚拟环境 ----------
-info "配置 Python 虚拟环境..."
-VENV_DIR="$PROJECT_DIR/.venv"
-
-# 5.1 确保 python3-venv 可用（Kali/Debian 常见缺失，导致 ensurepip 报错）
-if ! python3 -c "import venv, ensurepip" >/dev/null 2>&1; then
-    warn "缺少 python3-venv，尝试安装..."
-    if [ "$(id -u)" -eq 0 ]; then
-        apt update -qq && apt install -y -qq python3-venv python3-pip 2>&1 | tail -2
+setup_frontend() {
+    info "导出 API 契约并构建前端..."
+    "$PROJECT_DIR/.venv/bin/python" "$PROJECT_DIR/scripts/export_schema.py"
+    if [ -f "$PROJECT_DIR/web/package-lock.json" ]; then
+        (cd "$PROJECT_DIR/web" && npm ci)
     else
-        warn "需要 root 权限安装 python3-venv，请手动执行:"
-        warn "  sudo apt update && sudo apt install -y python3-venv python3-pip"
-        warn "然后重新运行本脚本"
-        exit 1
+        (cd "$PROJECT_DIR/web" && npm install)
     fi
-    if ! python3 -c "import ensurepip" >/dev/null 2>&1; then
-        err "python3-venv 安装后仍不可用，请手动检查"
-    fi
+    (cd "$PROJECT_DIR/web" && npm run build)
+    log "前端构建完成"
+}
+
+verify_entrypoints() {
+    chmod +x "$PROJECT_DIR/xuanmu.sh" "$PROJECT_DIR/start.sh" "$PROJECT_DIR/stop.sh"
+    bash -n "$PROJECT_DIR/xuanmu.sh" "$PROJECT_DIR/start.sh" "$PROJECT_DIR/stop.sh"
+    log "启动入口已就绪"
+}
+
+main() {
+    echo "========================================"
+    echo "  XuanMu RedTeam Agent v0.2.1"
+    echo "  安装配置脚本"
+    echo "========================================"
+
+    detect_distro
+    log "系统: $DISTRO_NAME ($DISTRO_FAMILY)"
+    collect_packages
+    install_packages
+    verify_runtime_versions
+    create_config
+    setup_database
+    setup_python
+    setup_frontend
+    verify_entrypoints
+
+    echo ""
+    echo "========================================"
+    echo "  安装配置完成"
+    echo "========================================"
+    echo "  启动服务:  ./start.sh"
+    echo "  停止服务:  ./stop.sh"
+    echo "  查看状态:  ./xuanmu.sh status"
+    echo "  配置文件:  .xuanmu/config.json"
+    echo ""
+    echo "  启动前请填写 agents 中的 api_key / base_url / model。"
+    echo "========================================"
+}
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    main "$@"
 fi
-
-# 5.2 创建虚拟环境（带失败检测）
-if [ ! -d "$VENV_DIR/bin/python" ]; then
-    info "创建虚拟环境..."
-    if ! python3 -m venv "$VENV_DIR"; then
-        err "虚拟环境创建失败。请确认 python3-venv 已安装，或尝试: python3 -m venv --without-pip $VENV_DIR"
-    fi
-    log "虚拟环境已创建"
-fi
-
-# 5.3 校验并激活
-if [ ! -x "$VENV_DIR/bin/python" ]; then
-    err "虚拟环境不完整，缺少 python 解释器"
-fi
-source "$VENV_DIR/bin/activate"
-
-# 5.4 确保 pip 存在（venv 有时不带 pip）
-if ! command -v pip >/dev/null 2>&1; then
-    warn "venv 中缺少 pip，尝试安装..."
-    python -m ensurepip --upgrade 2>/dev/null || {
-        curl -sS https://bootstrap.pypa.io/get-pip.py | python - 2>/dev/null || err "pip 安装失败，请手动处理"
-    }
-fi
-
-# 5.5 安装依赖（优先使用 requirements.txt，保证完整且与 start.sh 一致）
-info "安装 Python 依赖（阿里云镜像）..."
-python -m pip install -i https://mirrors.aliyun.com/pypi/simple/ --upgrade pip -q 2>&1 | tail -1
-if [ -f "$PROJECT_DIR/requirements.txt" ]; then
-    python -m pip install -i https://mirrors.aliyun.com/pypi/simple/ -r "$PROJECT_DIR/requirements.txt" 2>&1 | tail -3
-else
-    python -m pip install -i https://mirrors.aliyun.com/pypi/simple/ \
-        asyncpg sqlmodel openai mcp tiktoken sse-starlette python-multipart \
-        pyjwt pyyaml httpx httpx-sse docker fastapi uvicorn websockets \
-        pydantic-settings pydantic annotated-types anyio certifi charset-normalizer \
-        click cryptography distro greenlet h11 httpcore idna jiter jsonschema \
-        jsonschema-specifications openai-agents pycparser referencing regex \
-        rpds-py sniffio starlette tqdm typing-inspection typing_extensions urllib3 \
-        2>&1 | tail -3
-fi
-log "Python 依赖已安装"
-
-# ---------- 6. 构建前端 ----------
-info "构建前端界面..."
-if [ -d "$PROJECT_DIR/web" ]; then
-    if [ ! -d "$PROJECT_DIR/web/node_modules" ]; then
-        cd "$PROJECT_DIR/web" && npm install 2>&1 | tail -1
-    fi
-    # 获取 openapi.json
-    if [ ! -f "$PROJECT_DIR/openapi.json" ]; then
-        # 如果后端没跑，临时启动获取
-        if ! curl -s -o /dev/null http://127.0.0.1:8000/docs 2>/dev/null; then
-            cd "$PROJECT_DIR"
-            source "$VENV_DIR/bin/activate"
-            timeout 10 python main.py 2>/dev/null &
-            sleep 6
-            RETRIES=0
-            until curl -s http://127.0.0.1:8000/openapi.json -o "$PROJECT_DIR/openapi.json" 2>/dev/null; do
-                RETRIES=$((RETRIES + 1))
-                if [ $RETRIES -ge 3 ]; then
-                    warn "无法获取 openapi.json，跳过前端 API 类型生成"
-                    break
-                fi
-                sleep 2
-            done
-            pkill -f "python main.py" 2>/dev/null || true
-        else
-            curl -s http://127.0.0.1:8000/openapi.json -o "$PROJECT_DIR/openapi.json" 2>/dev/null
-        fi
-    fi
-    cd "$PROJECT_DIR/web"
-    # 将 openapi.json 链接到 web 目录
-    if [ -f "$PROJECT_DIR/openapi.json" ]; then
-        ln -sf "$PROJECT_DIR/openapi.json" "$PROJECT_DIR/web/openapi.json"
-    fi
-    if npm run build 2>&1 | tail -3; then
-        log "前端构建完成"
-    else
-        warn "前端构建失败，请检查错误日志"
-    fi
-    cd "$PROJECT_DIR"
-else
-    warn "无 web 目录，跳过前端构建"
-fi
-
-# ---------- 7. 创建启动/停止脚本 ----------
-info "创建便捷脚本..."
-
-cat > "$PROJECT_DIR/start.sh" << 'SCRIPT'
-#!/usr/bin/env bash
-# ============================================================
-# XuanMu RedTeam Agent - 一键启动脚本
-# 启动 PostgreSQL + 后端 API + 前端（构建后自动托管）
-# ============================================================
-set -e
-
-cd "$(dirname "$0")"
-PROJECT_DIR="$(pwd)"
-VENV_DIR="$PROJECT_DIR/.venv"
-
-echo "========================================"
-echo "  XuanMu RedTeam Agent"
-echo "  Version 0.2.1"
-echo "========================================"
-
-# 1. 检查 PostgreSQL 是否运行
-echo "[1/3] 检查 PostgreSQL..."
-if pg_isready -q 2>/dev/null; then
-    echo "  ✅ PostgreSQL 已在运行"
-else
-    echo "  ⏳ 启动 PostgreSQL..."
-    sudo pg_ctlcluster 18 main start 2>/dev/null || sudo service postgresql start 2>/dev/null || {
-        echo "  ❌ 启动失败，请手动运行: sudo pg_ctlcluster 18 main start"
-        exit 1
-    }
-    sleep 2
-    if pg_isready -q 2>/dev/null; then
-        echo "  ✅ PostgreSQL 启动成功"
-    else
-        echo "  ❌ PostgreSQL 启动失败"
-        exit 1
-    fi
-fi
-
-# 2. 激活虚拟环境
-echo "[2/3] 加载 Python 虚拟环境..."
-if [ ! -d "$VENV_DIR" ]; then
-    echo "  ⏳ 创建虚拟环境..."
-    python3 -m venv "$VENV_DIR"
-    "$VENV_DIR/bin/pip" install -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
-fi
-source "$VENV_DIR/bin/activate"
-echo "  ✅ 虚拟就绪: $(python3 --version)"
-
-# 3. 启动后端
-echo "[3/3] 启动 XuanMu 后端服务..."
-echo ""
-echo "  🌐 API 地址:     http://0.0.0.0:8000"
-echo "  📖 API 文档:     http://127.0.0.1:8000/docs"
-echo "  🖥️  前端界面:    http://127.0.0.1:8000"
-echo "  👤 管理员登录:   admin@admin.com / 密码见 .xuanmu/config.json"
-echo ""
-echo "  按 Ctrl+C 停止服务"
-echo "========================================"
-echo ""
-
-exec python main.py
-SCRIPT
-chmod +x "$PROJECT_DIR/start.sh"
-
-cat > "$PROJECT_DIR/stop.sh" << 'SCRIPT'
-#!/usr/bin/env bash
-echo "停止 XuanMu..."
-pkill -f "python main.py" 2>/dev/null && echo "  ✅ 已停止" || echo "  ℹ️  未在运行"
-SCRIPT
-chmod +x "$PROJECT_DIR/stop.sh"
-
-log "便捷脚本已创建"
-
-# ============================================================
-echo ""
-echo "========================================"
-echo "  🎉 安装配置完成！"
-echo "========================================"
-echo ""
-echo "  启动服务:  bash start.sh"
-echo "  停止服务:  bash stop.sh"
-echo "  管理 API:  bash config-tool.sh"
-echo "  配置文件:  .xuanmu/config.json"
-echo ""
-echo "  ⚠️  重要：编辑 .xuanmu/config.json"
-echo "     填入 agents 字段中的:"
-echo "      - api_key (你的 API Key)"
-echo "      - base_url (API 地址)"
-echo "      - model (模型名, 如 deepseek-v4-flash)"
-echo ""
-echo "  然后执行 bash start.sh 即可运行"
-echo "========================================"
